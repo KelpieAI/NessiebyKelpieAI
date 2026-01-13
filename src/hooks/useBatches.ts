@@ -28,7 +28,7 @@ export const useBatches = () => {
     // Create a single channel for all realtime subscriptions
     const channel = supabase
       .channel('nessie-realtime')
-      
+
       // Listen to batches table changes
       .on(
         'postgres_changes',
@@ -56,20 +56,23 @@ export const useBatches = () => {
                 if (b.id === payload.new.id) {
                   const updated = payload.new as Batch;
                   console.log(`   → Updating batch ${b.label}:`, updated);
-        
+
                   return {
                     ...b,
-                    ...updated,  // Take ALL values from database including counts
+                    ...updated, // Take ALL values from database including counts
                   };
                 }
                 return b;
               })
-          );
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setBatches((prev) => prev.filter((b) => b.id !== payload.old.id));
           }
+        }
+      )
 
-      
       // Listen to successful_scrapes inserts
-        .on(
+      .on(
         'postgres_changes',
         {
           event: 'INSERT',
@@ -80,7 +83,7 @@ export const useBatches = () => {
           console.log('✅ Realtime successful scrape:', payload.new);
           const batchUuid = (payload.new as any).batch_uuid;
           console.log('   → Batch UUID:', batchUuid);
-          
+
           if (batchUuid) {
             setBatches((prev) => {
               console.log('   → Current batches:', prev.length);
@@ -88,8 +91,10 @@ export const useBatches = () => {
                 if (batch.id === batchUuid) {
                   const newSuccessful = (batch.successful_count || 0) + 1;
                   const newProcessed = newSuccessful + (batch.failed_count || 0);
-                  console.log(`   → Updating batch ${batch.label}: ${newSuccessful} successful, ${newProcessed} total`);
-                  
+                  console.log(
+                    `   → Updating batch ${batch.label}: ${newSuccessful} successful, ${newProcessed} total`
+                  );
+
                   // DON'T auto-complete client-side - let Make.com handle it
                   return {
                     ...batch,
@@ -104,7 +109,7 @@ export const useBatches = () => {
           }
         }
       )
-      
+
       // Listen to failed_scrapes inserts
       .on(
         'postgres_changes',
@@ -117,7 +122,7 @@ export const useBatches = () => {
           console.log('❌ Realtime failed scrape:', payload.new);
           const batchUuid = (payload.new as any).batch_uuid;
           console.log('   → Batch UUID:', batchUuid);
-          
+
           if (batchUuid) {
             setBatches((prev) => {
               console.log('   → Current batches:', prev.length);
@@ -125,8 +130,10 @@ export const useBatches = () => {
                 if (batch.id === batchUuid) {
                   const newFailed = (batch.failed_count || 0) + 1;
                   const newProcessed = (batch.successful_count || 0) + newFailed;
-                  console.log(`   → Updating batch ${batch.label}: ${newFailed} failed, ${newProcessed} total`);
-                  
+                  console.log(
+                    `   → Updating batch ${batch.label}: ${newFailed} failed, ${newProcessed} total`
+                  );
+
                   // DON'T auto-complete client-side - let Make.com handle it
                   return {
                     ...batch,
@@ -141,7 +148,7 @@ export const useBatches = () => {
           }
         }
       )
-      
+
       .subscribe((status, err) => {
         console.log('🔴 Realtime subscription status:', status);
         if (err) {
@@ -163,7 +170,7 @@ export const useBatches = () => {
   const fetchBatchesWithCounts = async () => {
     try {
       console.log('Fetching batches with counts...');
-      
+
       // Fetch batches
       const { data: batchesData, error: batchesError } = await supabase
         .from('batches')
@@ -250,10 +257,7 @@ export const useBatches = () => {
 
   const updateBatch = async (id: string, updates: Partial<Batch>) => {
     try {
-      const { error } = await supabase
-        .from('batches')
-        .update(updates)
-        .eq('id', id);
+      const { error } = await supabase.from('batches').update(updates).eq('id', id);
 
       if (error) throw error;
       return { error: null };
@@ -266,29 +270,20 @@ export const useBatches = () => {
   const deleteBatch = async (id: string) => {
     try {
       console.log('Deleting batch:', id);
-    
+
       // STEP 1: Delete failed_scrapes first
-      await supabase
-        .from('failed_scrapes')
-        .delete()
-        .eq('batch_uuid', id);
+      await supabase.from('failed_scrapes').delete().eq('batch_uuid', id);
 
       // STEP 2: Delete successful_scrapes
-      await supabase
-        .from('successful_scrapes')
-        .delete()
-        .eq('batch_uuid', id);
+      await supabase.from('successful_scrapes').delete().eq('batch_uuid', id);
 
       // STEP 3: Now delete the batch
-      const { error } = await supabase
-        .from('batches')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('batches').delete().eq('id', id);
 
       if (error) throw error;
 
       setBatches((prev) => prev.filter((b) => b.id !== id));
-    
+
       return { error: null };
     } catch (error) {
       console.error('Error deleting batch:', error);
