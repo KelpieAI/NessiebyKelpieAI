@@ -30,7 +30,7 @@ export const QuickNotes = () => {
       .from('user_notes')
       .select('notes, updated_at')
       .eq('user_id', user.id)
-      .single();
+      .maybesingle();
 
     if (data) {
       setNotes(data.notes || '');
