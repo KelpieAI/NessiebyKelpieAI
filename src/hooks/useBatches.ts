@@ -49,33 +49,24 @@ export const useBatches = () => {
             };
             setBatches((prev) => [newBatch, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
-            // Batch updated (status change from Make.com) - only update status
+            // Batch updated - accept ALL values from database
             console.log('🔄 Realtime batch UPDATE:', payload.new);
             setBatches((prev) =>
               prev.map((b) => {
                 if (b.id === payload.new.id) {
                   const updated = payload.new as Batch;
-                  console.log(`   → Updating batch ${b.label} status: ${b.status} → ${updated.status}`);
-                  
+                  console.log(`   → Updating batch ${b.label}:`, updated);
+        
                   return {
                     ...b,
-                    // ONLY update status and processed_urls from DB
-                    status: updated.status,
-                    processed_urls: updated.processed_urls,
-                    // Keep all realtime-calculated counts
-                    successful_count: b.successful_count,
-                    failed_count: b.failed_count,
-                    actual_processed: b.actual_processed,
+                    ...updated,  // Take ALL values from database including counts
                   };
                 }
                 return b;
               })
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setBatches((prev) => prev.filter((b) => b.id !== payload.old.id));
+          );
           }
-        }
-      )
+
       
       // Listen to successful_scrapes inserts
       .on(
