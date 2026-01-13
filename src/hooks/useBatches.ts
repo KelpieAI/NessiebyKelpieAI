@@ -69,7 +69,7 @@ export const useBatches = () => {
 
       
       // Listen to successful_scrapes inserts
-      .on(
+        .on(
         'postgres_changes',
         {
           event: 'INSERT',
