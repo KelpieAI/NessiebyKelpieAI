@@ -18,16 +18,42 @@ export interface Batch {
   actual_processed?: number; // successful + failed (more accurate than processed_urls)
 }
 
-export const useBatches = () => {
+type UseBatchesOptions = {
+  /**
+   * Enable Supabase realtime subscriptions.
+   * Turn this OFF on pages that only need mutations (e.g. CreateBatchPage)
+   * to avoid channel collisions and "CLOSED" flapping.
+   */
+  enableRealtime?: boolean;
+};
+
+const makeUniqueChannelName = () => {
+  // Browser-safe unique id (crypto when available, fallback otherwise)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c: any = globalThis.crypto;
+    if (c?.randomUUID) return `nessie-realtime-${c.randomUUID()}`;
+  } catch {
+    // ignore
+  }
+  return `nessie-realtime-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+export const useBatches = (options?: UseBatchesOptions) => {
+  const enableRealtime = options?.enableRealtime ?? true;
+
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchBatchesWithCounts();
 
-    // Create a single channel for all realtime subscriptions
+    // If realtime is disabled for this hook instance, stop here.
+    if (!enableRealtime) return;
+
+    // IMPORTANT: use a unique channel name per hook instance to prevent collisions.
     const channel = supabase
-      .channel('nessie-realtime')
+      .channel(makeUniqueChannelName())
 
       // Listen to batches table changes
       .on(
@@ -39,6 +65,7 @@ export const useBatches = () => {
         },
         (payload) => {
           console.log('Realtime batch event:', payload.eventType, payload);
+
           if (payload.eventType === 'INSERT') {
             // New batch created - add with zero counts
             const newBatch = {
@@ -87,7 +114,7 @@ export const useBatches = () => {
           if (batchUuid) {
             setBatches((prev) => {
               console.log('   → Current batches:', prev.length);
-              const updated = prev.map((batch) => {
+              return prev.map((batch) => {
                 if (batch.id === batchUuid) {
                   const newSuccessful = (batch.successful_count || 0) + 1;
                   const newProcessed = newSuccessful + (batch.failed_count || 0);
@@ -104,7 +131,6 @@ export const useBatches = () => {
                 }
                 return batch;
               });
-              return updated;
             });
           }
         }
@@ -126,7 +152,7 @@ export const useBatches = () => {
           if (batchUuid) {
             setBatches((prev) => {
               console.log('   → Current batches:', prev.length);
-              const updated = prev.map((batch) => {
+              return prev.map((batch) => {
                 if (batch.id === batchUuid) {
                   const newFailed = (batch.failed_count || 0) + 1;
                   const newProcessed = (batch.successful_count || 0) + newFailed;
@@ -143,7 +169,6 @@ export const useBatches = () => {
                 }
                 return batch;
               });
-              return updated;
             });
           }
         }
@@ -165,7 +190,7 @@ export const useBatches = () => {
     return () => {
       channel.unsubscribe();
     };
-  }, []);
+  }, [enableRealtime]);
 
   const fetchBatchesWithCounts = async () => {
     try {
