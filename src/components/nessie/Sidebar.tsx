@@ -4,6 +4,7 @@ import type { SuccessfulScrape } from '../../types/nessie';
 import { BatchCard } from './BatchCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Search, RefreshCw, Trash2, Download } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface SidebarProps {
   batches: Batch[];
@@ -219,6 +220,22 @@ export const Sidebar = ({
       setLastSelectedBatchId(batchId);
     }
   };
+
+  const handleStopBatch = async (batchId: string) => {
+   try {
+    const { error } = await supabase
+      .from('batches')
+      .update({ status: 'partial' })
+      .eq('id', batchId);
+
+    if (error) throw error;
+    
+    onToast('Batch stopped - remaining URLs cancelled');
+  } catch (error) {
+    console.error('Error stopping batch:', error);
+    onToast('Failed to stop batch');
+  }
+};
 
   const filteredBatches = useMemo(() => {
     if (!searchQuery.trim()) {
