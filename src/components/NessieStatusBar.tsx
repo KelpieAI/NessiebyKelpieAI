@@ -9,7 +9,7 @@ export const NessieStatusBar = () => {
   return (
     <div className="fixed bottom-2 right-3 z-50 pointer-events-none">
       <p className="text-[11px] text-gray-400 font-[Space Grotesk] tracking-wide select-none">
-        Nessie by Kelpie AI (beta) | v0.9.0.218 | 24 Dec 2025 23:36
+        Nessie by Kelpie AI (beta) | v0.9.1.228 | 14 Jan 2026 00:12
         {shortUserId ? ` | User: ${shortUserId}` : ""}
       </p>
     </div>
