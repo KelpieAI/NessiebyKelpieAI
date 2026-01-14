@@ -151,19 +151,9 @@ export const LeadDetail = ({
   // Update message when lead changes
   useEffect(() => {
     if (lead) {
-      // Use the custom subject/message from Make if available, otherwise use defaults
-      const subject = lead.subject || `Quick idea for ${lead.company || lead.domain}`;
-      const body = lead.message || `Hey there,
-
-${lead.icebreaker || 'I noticed your business online.'}
-
-Many ${lead.industry || 'businesses'} lose potential work because follow ups depend on whoever's available at the time. A simple automation layer keeps every enquiry answered, quotes followed up, and appointments booked, all without adding extra admin.
-
-Worth a quick chat this week to see how that setup could work for your team?
-
-Kind regards,
-Kelpie AI × Especial Agency
-Where Marketing Meets Automation`;
+      // Use the message/subject returned from Make.com (no fallback - Make handles template merging)
+      const subject = lead.subject || '';
+      const body = lead.message || '';
 
       setMessageSubject(subject);
       setMessageBody(body);
