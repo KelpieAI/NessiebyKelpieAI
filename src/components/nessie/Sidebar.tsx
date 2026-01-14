@@ -4,7 +4,7 @@ import type { SuccessfulScrape } from '../../types/nessie';
 import { BatchCard } from './BatchCard';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Search, RefreshCw, Trash2, Download } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 interface SidebarProps {
   batches: Batch[];
