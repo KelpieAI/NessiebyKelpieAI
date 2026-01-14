@@ -1,6 +1,6 @@
 import type { Batch } from '../../hooks/useBatches';
 import type { SuccessfulScrape } from '../../types/nessie';
-import { ChevronRight, ChevronDown, AlertTriangle } from 'lucide-react';
+import { ChevronRight, ChevronDown, AlertTriangle, StopCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface BatchCardProps {
@@ -14,7 +14,8 @@ interface BatchCardProps {
   onToggleExpand: () => void;
   onLeadClick: (leadId: string) => void;
   onSelect: (e: React.MouseEvent) => void;
-  onOpenFailedTab?: () => void; // NEW: Callback to open failed tab
+  onOpenFailedTab?: () => void;
+  onStopBatch?: (batchId: string) => void; // NEW
 }
 
 export const BatchCard = ({
@@ -28,37 +29,31 @@ export const BatchCard = ({
   onToggleExpand,
   onLeadClick,
   onSelect,
-  onOpenFailedTab, // NEW
+  onOpenFailedTab,
+  onStopBatch, // NEW
 }: BatchCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showCompletionMessage, setShowCompletionMessage] = useState(false);
   
-  // Use counts for display only - progress comes from DB
   const successfulCount = batch.successful_count || leads.length;
   const failedCount = batch.failed_count || 0;
-  
-  // TRUST the database for progress tracking
   const actualProcessed = batch.processed_urls || 0;
-  
-  // TRUST the status from the database - don't calculate it client-side
   const status = batch.status;
   const isComplete = status === 'complete';
   const isProcessing = status === 'processing';
+  const isPartial = status === 'partial'; // NEW
   const isFullyProcessed = actualProcessed >= batch.total_urls;
 
-  // Show completion message when batch completes, auto-hide after 10 seconds
   useEffect(() => {
     if (isComplete && isFullyProcessed) {
       setShowCompletionMessage(true);
       const timer = setTimeout(() => {
         setShowCompletionMessage(false);
-      }, 10000); // 10 seconds
-
+      }, 10000);
       return () => clearTimeout(timer);
     }
   }, [isComplete, isFullyProcessed]);
 
-  // Format date with time
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     const dateStr = date.toLocaleDateString('en-GB', { 
@@ -76,7 +71,8 @@ export const BatchCard = ({
 
   const handleBatchClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.batch-toggle') || 
-        (e.target as HTMLElement).closest('.batch-checkbox')) {
+        (e.target as HTMLElement).closest('.batch-checkbox') ||
+        (e.target as HTMLElement).closest('.stop-button')) {
       return;
     }
     onClick();
@@ -84,7 +80,8 @@ export const BatchCard = ({
 
   const handleBatchDoubleClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.batch-toggle') || 
-        (e.target as HTMLElement).closest('.batch-checkbox')) {
+        (e.target as HTMLElement).closest('.batch-checkbox') ||
+        (e.target as HTMLElement).closest('.stop-button')) {
       return;
     }
     onToggleExpand();
@@ -99,6 +96,14 @@ export const BatchCard = ({
     e.stopPropagation();
     e.preventDefault();
     onSelect(e);
+  };
+
+  // NEW: Stop button handler
+  const handleStopClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onStopBatch) {
+      onStopBatch(batch.id);
+    }
   };
 
   return (
@@ -132,7 +137,6 @@ export const BatchCard = ({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'start', gap: '10px', flex: 1, minWidth: 0 }}>
-            {/* Checkbox */}
             <div
               className="batch-checkbox"
               onClick={handleCheckboxClick}
@@ -203,12 +207,16 @@ export const BatchCard = ({
                     ? 'rgba(34, 197, 94, 0.1)'
                     : status === 'processing'
                     ? 'rgba(251, 191, 36, 0.1)'
+                    : status === 'partial' // NEW
+                    ? 'rgba(249, 115, 22, 0.1)'
                     : 'rgba(100, 116, 139, 0.1)',
                 color:
                   status === 'complete'
                     ? 'rgb(34, 197, 94)'
                     : status === 'processing'
                     ? 'rgb(251, 191, 36)'
+                    : status === 'partial' // NEW
+                    ? 'rgb(249, 115, 22)'
                     : 'rgb(148, 163, 184)',
               }}
             >
@@ -244,44 +252,106 @@ export const BatchCard = ({
           </div>
         </div>
 
-        {/* Progress indicator for processing batches */}
+        {/* Processing indicator with Stop button */}
         {status === 'processing' && (
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
             marginTop: '8px',
             paddingTop: '8px',
             borderTop: '1px solid rgba(148, 163, 184, 0.1)',
           }}>
-            <div className="batch-spinner" />
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: '12px',
-                color: 'rgb(251, 191, 36)',
-                fontWeight: 500,
-                marginBottom: '2px',
-              }}>
-                {actualProcessed}/{batch.total_urls} processed
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '8px',
+            }}>
+              <div className="batch-spinner" />
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: '12px',
+                  color: 'rgb(251, 191, 36)',
+                  fontWeight: 500,
+                  marginBottom: '2px',
+                }}>
+                  {actualProcessed}/{batch.total_urls} processed
+                </div>
+                <div style={{
+                  fontSize: '11px',
+                  color: 'var(--text-secondary)',
+                }}>
+                  {successfulCount} success • {failedCount} failed
+                </div>
               </div>
-              <div style={{
-                fontSize: '11px',
-                color: 'var(--text-secondary)',
-              }}>
-                {successfulCount} success • {failedCount} failed
-              </div>
+            </div>
+
+            {/* NEW: Stop button */}
+            {onStopBatch && (
+              <button
+                className="stop-button"
+                onClick={handleStopClick}
+                style={{
+                  width: '100%',
+                  padding: '6px 10px',
+                  borderRadius: '4px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: 'rgb(239, 68, 68)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                }}
+              >
+                <StopCircle size={12} />
+                Stop Processing
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Partial status indicator */}
+        {status === 'partial' && (
+          <div style={{
+            marginTop: '8px',
+            paddingTop: '8px',
+            borderTop: '1px solid rgba(148, 163, 184, 0.1)',
+          }}>
+            <div style={{
+              fontSize: '12px',
+              color: 'rgb(249, 115, 22)',
+              fontWeight: 500,
+              marginBottom: '6px',
+            }}>
+              ⏸ Stopped at {actualProcessed}/{batch.total_urls}
+            </div>
+            <div style={{
+              fontSize: '11px',
+              color: 'var(--text-secondary)',
+            }}>
+              {successfulCount} success • {failedCount} failed
             </div>
           </div>
         )}
 
-        {/* Complete indicator with optional completion message */}
+        {/* Complete indicator */}
         {status === 'complete' && (
           <div style={{
             marginTop: '8px',
             paddingTop: '8px',
             borderTop: '1px solid rgba(148, 163, 184, 0.1)',
           }}>
-            {/* Temporary completion message - shows for 10 seconds */}
             {showCompletionMessage && isFullyProcessed && (
               <div style={{
                 fontSize: '12px',
@@ -294,7 +364,6 @@ export const BatchCard = ({
               </div>
             )}
             
-            {/* Permanent counts display */}
             <div style={{
               fontSize: '11px',
               color: 'var(--text-secondary)',
@@ -305,7 +374,6 @@ export const BatchCard = ({
               <span>{successfulCount} success • {failedCount} failed</span>
             </div>
             
-            {/* Failed scrapes warning */}
             {failedCount > 0 && (
               <div
                 onClick={(e) => {
@@ -322,7 +390,7 @@ export const BatchCard = ({
                   border: '1px solid rgba(251, 191, 36, 0.2)',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between', // CHANGED: space-between for chevron on right
+                  justifyContent: 'space-between',
                   cursor: onOpenFailedTab ? 'pointer' : 'default',
                   transition: 'all 0.2s',
                 }}
@@ -345,7 +413,6 @@ export const BatchCard = ({
                     {failedCount} {failedCount === 1 ? 'scrape' : 'scrapes'} need attention
                   </span>
                 </div>
-                {/* NEW: Add chevron on the right */}
                 {onOpenFailedTab && (
                   <ChevronRight size={12} color="rgb(251, 191, 36)" />
                 )}
