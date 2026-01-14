@@ -222,20 +222,20 @@ export const Sidebar = ({
   };
 
   const handleStopBatch = async (batchId: string) => {
-   try {
-    const { error } = await supabase
-      .from('batches')
-      .update({ status: 'partial' })
-      .eq('id', batchId);
+     try {
+      const { error } = await supabase
+        .from('batches')
+        .update({ status: 'partial' })
+        .eq('id', batchId);
 
-    if (error) throw error;
+      if (error) throw error;
     
-    onToast('Batch stopped - remaining URLs cancelled');
-  } catch (error) {
-    console.error('Error stopping batch:', error);
-    onToast('Failed to stop batch');
-  }
-};
+      onToast('Batch stopped - remaining URLs cancelled');
+    } catch (error) {
+      console.error('Error stopping batch:', error);
+      onToast('Failed to stop batch');
+    }
+  };
 
   const filteredBatches = useMemo(() => {
     if (!searchQuery.trim()) {
