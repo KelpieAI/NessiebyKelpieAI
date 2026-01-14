@@ -402,6 +402,7 @@ export const Sidebar = ({
                   onLeadClick={(leadId) => handleLeadClickWithExpand(leadId)}
                   onSelect={(e) => handleBatchSelect(batch.id, e)}
                   onOpenFailedTab={onOpenFailedTab ? () => onOpenFailedTab(batch.id) : undefined} // NEW: Pass handler
+                  onStopBatch={handleStopBatch}
                 />
               ))
             )}
