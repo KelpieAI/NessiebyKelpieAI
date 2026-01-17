@@ -73,6 +73,8 @@ Deno.serve(async (req: Request) => {
         emails: payload.emails || [],
         industry: payload.industry || null,
         icebreaker: payload.icebreaker || null,
+        subject: payload.subject || null,
+        message: payload.message || null,
         status: successStatus,
       });
 
