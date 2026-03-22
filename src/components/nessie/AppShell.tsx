@@ -16,14 +16,12 @@ export const AppShell = () => {
   const { batches, deleteBatch, refreshBatches } = useBatches();
 
   const getActiveView = () => {
-    if (location.pathname.startsWith('/find-leads')) return 'Lead Finder';
     if (location.pathname.startsWith('/settings')) return 'Settings';
     return 'Queue';
   };
 
   const handleViewChange = (view: string) => {
-    if (view === 'Lead Finder') navigate('/find-leads');
-    else if (view === 'Settings') navigate('/settings');
+    if (view === 'Settings') navigate('/settings');
     else navigate('/queue');
   };
 

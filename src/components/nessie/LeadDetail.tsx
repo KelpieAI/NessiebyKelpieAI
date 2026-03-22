@@ -3,6 +3,7 @@ import type { SuccessfulScrape, LeadStatus } from '../../types/nessie';
 import type { Batch } from '../../hooks/useBatches';
 import { LoadingSkeleton } from './LoadingSkeleton';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabase';
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,9 +16,26 @@ import {
   Tag as TagIcon,
   X,
   Send,
+  Globe,
+  Phone,
 } from 'lucide-react';
 import { EmailComposer } from '../EmailComposer';
 import { EmailStats } from './EmailStats';
+
+interface SearchResult {
+  name: string;
+  address: string;
+  website: string;
+  phone: string;
+  industry: string;
+  emails?: Array<{
+    email: string;
+    confidence: number;
+    first_name?: string;
+    last_name?: string;
+    position?: string;
+  }>;
+}
 
 interface LeadDetailProps {
   lead: SuccessfulScrape | null;
@@ -114,6 +132,471 @@ const getEmptyStateGreeting = (userName: string = 'User'): string => {
   return greetingPool[Math.floor(Math.random() * greetingPool.length)];
 };
 
+interface LeadFinderWelcomeProps {
+  firstName: string;
+  greeting: string;
+}
+
+const LeadFinderWelcome = ({ firstName, greeting }: LeadFinderWelcomeProps) => {
+  const [query, setQuery] = useState('');
+  const [location, setLocation] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [hasResults, setHasResults] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enrichmentResult, setEnrichmentResult] = useState<{ found: number; total: number } | null>(null);
+  const [batchId, setBatchId] = useState<string | null>(null);
+
+  const handleSearch = async () => {
+    if (!query.trim() || !location.trim()) {
+      setError('Please enter both industry/business type and location');
+      return;
+    }
+
+    setIsSearching(true);
+    setError(null);
+    setEnrichmentResult(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please log in to search');
+        setIsSearching(false);
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-places`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ query, location, industry }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Search failed');
+      }
+
+      const data = await response.json();
+      setResults(data.results || []);
+      setBatchId(data.batch_id || null);
+      setHasResults(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Search failed');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleEnrich = async () => {
+    if (!batchId) {
+      setError('No batch to enrich');
+      return;
+    }
+
+    setIsEnriching(true);
+    setError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Please log in to enrich');
+        setIsEnriching(false);
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enrich-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ batch_id: batchId }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Enrichment failed');
+      }
+
+      const data = await response.json();
+      setEnrichmentResult({ found: data.found || 0, total: data.total || results.length });
+
+      const { data: enrichedLeads } = await supabase
+        .from('successful_scrapes')
+        .select('*')
+        .eq('batch_id', batchId);
+
+      if (enrichedLeads) {
+        const mappedResults: SearchResult[] = enrichedLeads.map((lead: any) => ({
+          name: lead.company || lead.domain || '',
+          address: lead.address || '',
+          website: lead.website || '',
+          phone: lead.phone || '',
+          industry: lead.industry || '',
+          emails: lead.emails?.map((email: string, idx: number) => ({
+            email,
+            confidence: lead.email_confidence?.[idx] || 0,
+            first_name: lead.first_name || '',
+            last_name: lead.last_name || '',
+            position: lead.job_title || '',
+          })) || [],
+        }));
+        setResults(mappedResults);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Enrichment failed');
+    } finally {
+      setIsEnriching(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: hasResults ? 'stretch' : 'center',
+        justifyContent: hasResults ? 'flex-start' : 'center',
+        minHeight: '500px',
+        textAlign: hasResults ? 'left' : 'center',
+        padding: hasResults ? '24px 32px' : '40px',
+        fontFamily: "'Space Grotesk', sans-serif",
+        transition: 'all 0.3s ease',
+      }}
+    >
+      {/* Welcome Section - fades out when results appear */}
+      <div
+        style={{
+          opacity: hasResults ? 0 : 1,
+          transform: hasResults ? 'translateY(-10px)' : 'translateY(0)',
+          transition: 'opacity 0.3s ease, transform 0.3s ease',
+          display: hasResults ? 'none' : 'block',
+        }}
+      >
+        <div style={{ fontSize: '64px', marginBottom: '24px' }}>
+          🐉
+        </div>
+        <div
+          style={{
+            fontSize: '36px',
+            fontWeight: 700,
+            color: '#e2e8f0',
+            marginBottom: '12px',
+          }}
+        >
+          {greeting}
+        </div>
+        <div
+          style={{
+            fontSize: '16px',
+            color: '#94a3b8',
+            lineHeight: 1.6,
+            maxWidth: '450px',
+            marginBottom: '24px',
+            margin: '0 auto 24px',
+          }}
+        >
+          Nessie's ready to dive into your leads. Pick a batch from the sidebar or search for new businesses below.
+        </div>
+        <div
+          style={{
+            fontSize: '14px',
+            color: '#64748b',
+            fontStyle: 'italic',
+            marginBottom: '32px',
+          }}
+        >
+          Pro tip: Use keyboard shortcuts to navigate faster
+        </div>
+      </div>
+
+      {/* Search Form - always visible, moves to top when results appear */}
+      <div
+        className="card"
+        style={{
+          maxWidth: hasResults ? '100%' : '600px',
+          width: '100%',
+          margin: hasResults ? '0 0 24px 0' : '0 auto',
+          transition: 'all 0.3s ease',
+        }}
+      >
+        <div className="section-header" style={{ marginBottom: '16px' }}>
+          <span className="section-title">Lead Finder</span>
+          <span className="section-tag">Search for businesses</span>
+        </div>
+
+        <div
+          className="form-grid"
+          style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}
+        >
+          <div>
+            <label className="label">Industry / Business Type</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. dentists, restaurants"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+          <div>
+            <label className="label">Location</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Austin, TX"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+          <div>
+            <label className="label">Industry Tag (optional)</label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. healthcare"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+        </div>
+
+        <div className="button-row" style={{ marginTop: '16px' }}>
+          <button
+            className="btn"
+            onClick={handleSearch}
+            disabled={isSearching}
+          >
+            {isSearching ? 'Searching...' : 'Search Businesses'}
+          </button>
+          {hasResults && (
+            <button
+              className="btn secondary"
+              onClick={handleEnrich}
+              disabled={isEnriching || !batchId}
+            >
+              {isEnriching ? 'Finding emails...' : 'Find Emails'}
+            </button>
+          )}
+          {hasResults && (
+            <span className="batch-pill" style={{ marginLeft: 'auto' }}>
+              {results.length} leads
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div
+          style={{
+            background: 'rgba(255, 78, 106, 0.1)',
+            color: 'var(--danger)',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontSize: '13px',
+            width: '100%',
+            maxWidth: hasResults ? '100%' : '600px',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* Enrichment Success Banner */}
+      {enrichmentResult && (
+        <div
+          style={{
+            background: 'rgba(17, 194, 210, 0.08)',
+            color: 'var(--accent)',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            fontSize: '13px',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <Check size={16} />
+          Found emails for {enrichmentResult.found} out of {enrichmentResult.total} businesses
+        </div>
+      )}
+
+      {/* Results Section - fades in after search */}
+      {hasResults && (
+        <div
+          style={{
+            opacity: 1,
+            transition: 'opacity 0.3s ease 0.1s',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+        >
+          {results.map((result, idx) => (
+            <div
+              key={idx}
+              className="card"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '24px',
+              }}
+            >
+              {/* Left Side - Company Info */}
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: '#e2e8f0',
+                    marginBottom: '6px',
+                  }}
+                >
+                  {result.name}
+                </div>
+
+                {result.address && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      marginBottom: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <span style={{ fontSize: '12px' }}>📍</span>
+                    {result.address}
+                  </div>
+                )}
+
+                {result.website && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      marginBottom: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Globe size={12} color="var(--accent)" />
+                    <a
+                      href={result.website.startsWith('http') ? result.website : `https://${result.website}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        color: 'var(--accent)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      {result.website}
+                    </a>
+                  </div>
+                )}
+
+                {result.phone && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: '#e2e8f0',
+                      marginBottom: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Phone size={12} color="var(--text-muted)" />
+                    {result.phone}
+                  </div>
+                )}
+
+                {result.industry && (
+                  <span className="lead-industry-pill">
+                    {result.industry}
+                  </span>
+                )}
+              </div>
+
+              {/* Right Side - Email Contacts */}
+              <div style={{ minWidth: '240px' }}>
+                {result.emails && result.emails.length > 0 ? (
+                  result.emails.map((contact, cidx) => (
+                    <div key={cidx} style={{ marginBottom: cidx < result.emails!.length - 1 ? '8px' : 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span
+                          style={{
+                            fontSize: '13px',
+                            color: 'var(--accent)',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {contact.email}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                          }}
+                        >
+                          {contact.confidence}%
+                        </span>
+                      </div>
+                      {(contact.first_name || contact.last_name || contact.position) && (
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            marginTop: '2px',
+                          }}
+                        >
+                          {contact.first_name} {contact.last_name}
+                          {contact.position && ` - ${contact.position}`}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    — no email yet
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const LeadDetail = ({
   lead,
   batch,
@@ -185,59 +668,11 @@ export const LeadDetail = ({
 
   if (!lead || !batch) {
     console.log('[LeadDetail] No lead or batch selected');
-    // Use the cached greeting (generated once on mount)
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '500px',
-          textAlign: 'center',
-          padding: '80px 40px',
-          fontFamily: "'Space Grotesk', sans-serif",
-        }}
-      >
-        <div
-          style={{
-            fontSize: '64px',
-            marginBottom: '24px',
-          }}
-        >
-          🐉
-        </div>
-        <div
-          style={{
-            fontSize: '36px',
-            fontWeight: 700,
-            color: '#e2e8f0',
-            marginBottom: '12px',
-          }}
-        >
-          {emptyStateGreeting}
-        </div>
-        <div
-          style={{
-            fontSize: '16px',
-            color: '#94a3b8',
-            lineHeight: 1.6,
-            maxWidth: '450px',
-            marginBottom: '24px',
-          }}
-        >
-          Nessie's ready to dive into your leads. Pick a batch from the sidebar and let's see what we can find lurking in the depths.
-        </div>
-        <div
-          style={{
-            fontSize: '14px',
-            color: '#64748b',
-            fontStyle: 'italic',
-          }}
-        >
-          Pro tip: Use keyboard shortcuts to navigate faster
-        </div>
-      </div>
+      <LeadFinderWelcome
+        firstName={firstName}
+        greeting={emptyStateGreeting}
+      />
     );
   }
 
