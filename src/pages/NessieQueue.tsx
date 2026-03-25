@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TopBar } from '../components/nessie/TopBar';
 import { Sidebar } from '../components/nessie/Sidebar';
 import { TabBar } from '../components/nessie/TabBar';
 import { LeadDetail } from '../components/nessie/LeadDetail';
@@ -14,7 +13,9 @@ import { useLeads } from '../hooks/useLeads';
 import { useToast } from '../hooks/useToast';
 import { useBatchTimeout } from '../hooks/useBatchTimeout';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { supabase } from '../lib/supabase';
 import type { SuccessfulScrape } from '../hooks/useLeads';
+import { Search, Mail, Phone, Globe } from 'lucide-react';
 import '../styles/nessie.css';
 
 interface LeadTab {
@@ -22,18 +23,52 @@ interface LeadTab {
   lead: SuccessfulScrape;
 }
 
+interface EmailContact {
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  position?: string;
+  confidence?: number;
+}
+
+interface FinderLead {
+  id: string;
+  company: string;
+  location: string;
+  website: string;
+  phone: string | null;
+  emails: EmailContact[];
+  lead_status: string;
+  batch_id: string;
+  batch_uuid: string;
+  industry?: string;
+}
+
+type MainView = 'welcome' | 'finder-results' | 'lead-detail' | 'leads-table' | 'analytics';
+
 export const NessieQueue = () => {
   const [activeView, setActiveView] = useState('Queue');
+  const [mainView, setMainView] = useState<MainView>('welcome');
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [activeLeadId, setActiveLeadId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'failed'>('all'); // Track LeadsTable tab
-  const [showLeadsTable, setShowLeadsTable] = useState(false); // NEW: Track if showing LeadsTable
+  const [activeTab, setActiveTab] = useState<'all' | 'failed'>('all');
   const [openTabs, setOpenTabs] = useState<LeadTab[]>([]);
   const [leadsByBatch, setLeadsByBatch] = useState<Record<string, SuccessfulScrape[]>>({});
   const [loadingLead, setLoadingLead] = useState(false);
 
-  const navigate = useNavigate();
+  // Lead Finder state
+  const [finderQuery, setFinderQuery] = useState('');
+  const [finderLocation, setFinderLocation] = useState('');
+  const [finderIndustry, setFinderIndustry] = useState('');
+  const [finderSearching, setFinderSearching] = useState(false);
+  const [finderEnriching, setFinderEnriching] = useState(false);
+  const [finderLeads, setFinderLeads] = useState<FinderLead[]>([]);
+  const [finderBatchId, setFinderBatchId] = useState<string | null>(null);
+  const [finderEnrichSummary, setFinderEnrichSummary] = useState<{ enriched: number; total: number } | null>(null);
+  const [finderError, setFinderError] = useState<string | null>(null);
+  const [hasResults, setHasResults] = useState(false);
 
+  const navigate = useNavigate();
   const { batches, deleteBatch, refreshBatches } = useBatches();
   const { leads, updateLead, deleteLead } = useLeads(activeBatchId);
   const { toasts, showToast, removeToast } = useToast();
@@ -41,7 +76,6 @@ export const NessieQueue = () => {
 
   useEffect(() => {
     if (activeBatchId && leads) {
-      console.log('[NessieQueue] Updating leadsByBatch cache. Batch:', activeBatchId, 'Leads count:', leads.length);
       setLeadsByBatch((prev) => ({
         ...prev,
         [activeBatchId]: leads,
@@ -49,65 +83,128 @@ export const NessieQueue = () => {
     }
   }, [activeBatchId, leads]);
 
+  // ── Lead Finder handlers ──────────────────────────────────────
 
-  const handleCreateNewBatch = () => {
-    navigate('/queue/new');
+  const handleFinderSearch = async () => {
+    if (!finderQuery || !finderLocation) return;
+    setFinderSearching(true);
+    setFinderError(null);
+    setFinderLeads([]);
+    setFinderBatchId(null);
+    setFinderEnrichSummary(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/search-places`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            query: finderQuery,
+            location: finderLocation,
+            industry: finderIndustry,
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setFinderError(data.error || 'Search failed');
+        return;
+      }
+
+      setFinderLeads(data.leads);
+      setFinderBatchId(data.batch_id);
+      setHasResults(true);
+      setMainView('finder-results');
+      showToast(`Found ${data.leads.length} businesses`);
+      await refreshBatches();
+    } catch (err: any) {
+      setFinderError(err.message);
+    } finally {
+      setFinderSearching(false);
+    }
   };
 
-  const handleDeleteBatch = async (batchId?: string) => {
-    console.log('🗑️ DELETE CALLED with batchId:', batchId);
-    console.log('🗑️ activeBatchId:', activeBatchId);
-    
-    const idToDelete = batchId || activeBatchId;
-    console.log('🗑️ Will delete:', idToDelete);
-    
-    if (!idToDelete) {
-      console.log('❌ No batch ID to delete!');
-      return;
+  const handleFinderEnrich = async () => {
+    if (!finderBatchId) return;
+    setFinderEnriching(true);
+    setFinderError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enrich-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ batch_id: finderBatchId }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setFinderError(data.error || 'Enrichment failed');
+        return;
+      }
+
+      setFinderEnrichSummary(data.results);
+      showToast(`Found emails for ${data.results.enriched} businesses`);
+
+      const { data: updated } = await supabase
+        .from('successful_scrapes')
+        .select('*')
+        .eq('batch_uuid', finderBatchId);
+
+      if (updated) setFinderLeads(updated as FinderLead[]);
+    } catch (err: any) {
+      setFinderError(err.message);
+    } finally {
+      setFinderEnriching(false);
     }
+  };
+
+  // ── Batch / Lead handlers ─────────────────────────────────────
+
+  const handleCreateNewBatch = () => navigate('/queue/new');
+
+  const handleDeleteBatch = async (batchId?: string) => {
+    const idToDelete = batchId || activeBatchId;
+    if (!idToDelete) return;
 
     const { error } = await deleteBatch(idToDelete);
-    
-    console.log('🗑️ Delete result - Error:', error);
-    
-    if (error) {
-      showToast('Failed to delete batch');
-      return;
-    }
+    if (error) { showToast('Failed to delete batch'); return; }
 
-    // If we deleted the active batch, clear selection
     if (idToDelete === activeBatchId) {
       setActiveBatchId(null);
       setActiveLeadId(null);
-      setShowLeadsTable(false);
+      setMainView('welcome');
+      setHasResults(false);
     }
 
     await refreshBatches();
     showToast('Batch deleted');
   };
 
-  // Handle lead updates (status, tags, etc.)
   const handleLeadUpdate = async (leadId: string, updates: Partial<SuccessfulScrape>) => {
-    console.log('[NessieQueue] Updating lead:', leadId, updates);
-    
     const { error } = await updateLead(leadId, updates);
-    
-    if (error) {
-      showToast('Failed to update lead');
-      console.error('Error updating lead:', error);
-      return;
-    }
+    if (error) { showToast('Failed to update lead'); return; }
 
-    // Update the lead in tabs if it's open
     setOpenTabs((prev) =>
       prev.map((tab) =>
-        tab.leadId === leadId
-          ? { ...tab, lead: { ...tab.lead, ...updates } }
-          : tab
+        tab.leadId === leadId ? { ...tab, lead: { ...tab.lead, ...updates } } : tab
       )
     );
 
-    // Update leadsByBatch cache
     if (activeBatchId) {
       setLeadsByBatch((prev) => ({
         ...prev,
@@ -118,22 +215,12 @@ export const NessieQueue = () => {
     }
   };
 
-  // Handle lead deletion
   const handleLeadDelete = async (leadId: string) => {
-    console.log('[NessieQueue] Deleting lead:', leadId);
-    
     const { error } = await deleteLead(leadId);
-    
-    if (error) {
-      showToast('Failed to delete lead');
-      console.error('Error deleting lead:', error);
-      return;
-    }
+    if (error) { showToast('Failed to delete lead'); return; }
 
-    // Close the tab if it's open
     setOpenTabs((prev) => prev.filter((tab) => tab.leadId !== leadId));
 
-    // If this was the active lead, select another one
     if (activeLeadId === leadId && activeBatchId) {
       const remainingLeads = leadsByBatch[activeBatchId]?.filter((l) => l.id !== leadId) || [];
       if (remainingLeads.length > 0) {
@@ -143,7 +230,6 @@ export const NessieQueue = () => {
       }
     }
 
-    // Update leadsByBatch cache
     if (activeBatchId) {
       setLeadsByBatch((prev) => ({
         ...prev,
@@ -154,73 +240,48 @@ export const NessieQueue = () => {
     showToast('Lead deleted');
   };
 
-  // Handle clicking on activity items in right sidebar
   const handleActivityLeadClick = (leadId: string) => {
-    console.log('[NessieQueue] Activity clicked for lead:', leadId);
-    
-    // Find the lead across all batches
     let foundLead: SuccessfulScrape | undefined;
     let foundBatchId: string | undefined;
 
-    // First check current batch
     if (activeBatchId) {
       foundLead = leadsByBatch[activeBatchId]?.find(l => l.id === leadId);
-      if (foundLead) {
-        foundBatchId = activeBatchId;
-      }
+      if (foundLead) foundBatchId = activeBatchId;
     }
 
-    // If not found, search all batches
     if (!foundLead) {
       for (const batchId in leadsByBatch) {
         foundLead = leadsByBatch[batchId]?.find(l => l.id === leadId);
-        if (foundLead) {
-          foundBatchId = batchId;
-          break;
-        }
+        if (foundLead) { foundBatchId = batchId; break; }
       }
     }
 
-    // If found, open the lead
     if (foundLead && foundBatchId) {
       openLead(foundLead, foundBatchId);
     } else {
-      console.warn('Lead not found in cache:', leadId);
       showToast('Lead not found');
     }
   };
 
-  // Handle lead navigation (prev/next)
   const handleLeadNavigate = (direction: 'prev' | 'next') => {
     if (!activeBatchId) return;
-
     const currentLeads = leadsByBatch[activeBatchId] || [];
     const currentIndex = currentLeads.findIndex((l) => l.id === activeLeadId);
-
     if (currentIndex === -1) return;
 
-    let newIndex: number;
-    if (direction === 'prev') {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : currentIndex;
-    } else {
-      newIndex = currentIndex < currentLeads.length - 1 ? currentIndex + 1 : currentIndex;
-    }
+    const newIndex = direction === 'prev'
+      ? Math.max(0, currentIndex - 1)
+      : Math.min(currentLeads.length - 1, currentIndex + 1);
 
-    if (newIndex !== currentIndex) {
-      openLead(currentLeads[newIndex], activeBatchId);
-    }
+    if (newIndex !== currentIndex) openLead(currentLeads[newIndex], activeBatchId);
   };
 
-  // Handle opening failed tab from batch card warning
   const handleOpenFailedTab = (batchId: string) => {
-    console.log('🚨 Opening failed tab for batch:', batchId);
     setActiveBatchId(batchId);
-    setActiveTab('failed'); // Switch to failed tab
-    setShowLeadsTable(true); // Show LeadsTable view
-    console.log('✅ Set showLeadsTable to true');
+    setActiveTab('failed');
+    setMainView('leads-table');
   };
 
-  // Handle stale batch completion
   const handleMarkBatchComplete = async (batchId: string) => {
     const { error } = await markBatchComplete(batchId);
     if (error) {
@@ -241,63 +302,69 @@ export const NessieQueue = () => {
     }
   };
 
-  useKeyboardShortcuts({
-    onCreateBatch: () => {
-      handleCreateNewBatch();
-      showToast('Create a new batch');
-    },
-    onSaveNotes: () => {
-      if (activeLeadId) {
-        showToast('Note saved');
-      }
-    },
-    onNavigateUp: () => handleLeadNavigate('prev'),
-    onNavigateDown: () => handleLeadNavigate('next'),
-    onDeleteBatch: handleDeleteBatch,
-  });
-
-
   const handleBatchClick = (batchId: string) => {
-    console.log('[NessieQueue] Batch clicked:', batchId);
+    const batch = batches.find(b => b.id === batchId);
     setActiveBatchId(batchId);
-    setActiveTab('all'); // Reset to "all" tab when clicking batch normally
-    setShowLeadsTable(false); // Hide LeadsTable, show normal view
+    setActiveTab('all');
 
-    const batchLeads = leadsByBatch[batchId] || [];
-    console.log('[NessieQueue] Leads in cache for batch:', batchLeads.length);
-
-    if (batchLeads.length > 0) {
-      if (!batchLeads.find((l) => l.id === activeLeadId)) {
-        console.log('[NessieQueue] Opening first lead from batch');
-        openLead(batchLeads[0], batchId);
-      }
+    if (batch?.channel === 'lead-finder') {
+      // Load leads for this finder batch and show finder-results view
+      supabase
+        .from('successful_scrapes')
+        .select('*')
+        .eq('batch_uuid', batchId)
+        .then(({ data }) => {
+          if (data) {
+            setFinderLeads(data as FinderLead[]);
+            setFinderBatchId(batchId);
+            setHasResults(true);
+            setMainView('finder-results');
+            // Also cache in leadsByBatch for detail view
+            setLeadsByBatch(prev => ({ ...prev, [batchId]: data as SuccessfulScrape[] }));
+          }
+        });
     } else {
-      console.log('[NessieQueue] No leads in cache, clearing active lead');
-      setActiveLeadId(null);
+      // Normal scraper batch
+      setMainView('lead-detail');
+      const batchLeads = leadsByBatch[batchId] || [];
+      if (batchLeads.length > 0) {
+        if (!batchLeads.find((l) => l.id === activeLeadId)) {
+          openLead(batchLeads[0], batchId);
+        }
+      } else {
+        setActiveLeadId(null);
+      }
     }
   };
 
   const handleLeadClick = (leadId: string, batchId: string) => {
-    setShowLeadsTable(false); // Hide LeadsTable when clicking a lead
     const lead = leadsByBatch[batchId]?.find((l) => l.id === leadId);
-    if (lead) {
-      openLead(lead, batchId);
-    }
+    if (lead) openLead(lead, batchId);
+  };
+
+  // Click a lead from the finder-results cards
+  const handleFinderLeadClick = (lead: FinderLead) => {
+    const scrape = lead as unknown as SuccessfulScrape;
+    setLeadsByBatch(prev => ({
+      ...prev,
+      [lead.batch_uuid]: finderLeads as unknown as SuccessfulScrape[],
+    }));
+    openLead(scrape, lead.batch_uuid);
+    setMainView('lead-detail');
   };
 
   const openLead = (lead: SuccessfulScrape, batchId: string) => {
     setLoadingLead(true);
     setActiveLeadId(lead.id);
     setActiveBatchId(batchId);
+    setMainView('lead-detail');
 
     const existingTab = openTabs.find((t) => t.leadId === lead.id);
     if (!existingTab) {
       setOpenTabs((prev) => [...prev, { leadId: lead.id, lead }]);
     }
 
-    setTimeout(() => {
-      setLoadingLead(false);
-    }, 200);
+    setTimeout(() => setLoadingLead(false), 200);
   };
 
   const handleTabClose = (leadId: string) => {
@@ -306,110 +373,395 @@ export const NessieQueue = () => {
     if (activeLeadId === leadId) {
       const remainingTabs = openTabs.filter((t) => t.leadId !== leadId);
       if (remainingTabs.length > 0) {
-        const lastTab = remainingTabs[remainingTabs.length - 1];
-        setActiveLeadId(lastTab.leadId);
+        setActiveLeadId(remainingTabs[remainingTabs.length - 1].leadId);
       } else {
         setActiveLeadId(null);
+        setMainView('welcome');
       }
     }
   };
 
+  useKeyboardShortcuts({
+    onCreateBatch: () => { handleCreateNewBatch(); showToast('Create a new batch'); },
+    onSaveNotes: () => { if (activeLeadId) showToast('Note saved'); },
+    onNavigateUp: () => handleLeadNavigate('prev'),
+    onNavigateDown: () => handleLeadNavigate('next'),
+    onDeleteBatch: handleDeleteBatch,
+  });
+
   const currentLead = activeLeadId
-    ? Object.values(leadsByBatch)
-        .flat()
-        .find((l) => l.id === activeLeadId)
+    ? Object.values(leadsByBatch).flat().find((l) => l.id === activeLeadId)
     : null;
 
   const currentBatch = batches.find((b) => b.id === activeBatchId);
-
-  // Get all leads in current batch for navigation
   const allLeadsInBatch = activeBatchId ? (leadsByBatch[activeBatchId] || []) : [];
 
-  return (
-    <div>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap"
-        rel="stylesheet"
-      />
+  // ── Render ────────────────────────────────────────────────────
 
-      <TopBar
-        activeView={activeView}
-        onViewChange={setActiveView}
-        onCreateNewBatch={handleCreateNewBatch}
-      />
-
-      {activeView === 'Analytics' ? (
+  const renderMainContent = () => {
+    if (activeView === 'Analytics') {
+      return (
         <AnalyticsPage
           onNavigateToBatch={(batchId) => {
             setActiveView('Queue');
             handleBatchClick(batchId);
           }}
         />
-      ) : activeView === 'Settings' ? (
-        <div style={{ padding: '40px', color: 'var(--text)' }}>
-          <div style={{ fontSize: '32px', fontFamily: 'Playfair Display, serif', marginBottom: '32px', fontWeight: 600 }}>
-            Settings
-          </div>
-          <div style={{ color: 'var(--text-secondary)' }}>Settings page coming soon...</div>
-        </div>
-      ) : (
-        <div className="layout">
-          <Sidebar
-            batches={batches}
-            leadsByBatch={leadsByBatch}
-            activeBatchId={activeBatchId}
+      );
+    }
+
+    if (mainView === 'leads-table') {
+      return (
+        <LeadsTable
+          activeBatchId={activeBatchId}
+          initialTab={activeTab}
+        />
+      );
+    }
+
+    if (mainView === 'lead-detail') {
+      return (
+        <>
+          <TabBar
+            tabs={openTabs}
             activeLeadId={activeLeadId}
-            onBatchClick={handleBatchClick}
-            onLeadClick={handleLeadClick}
-            onToast={showToast}
-            onCreateNewBatch={handleCreateNewBatch}
-            onRefreshBatches={refreshBatches}
-            onDeleteBatch={handleDeleteBatch}
-            onOpenFailedTab={handleOpenFailedTab} // Pass handler
+            onTabClick={(leadId) => {
+              setActiveLeadId(leadId);
+              setLoadingLead(true);
+              setTimeout(() => setLoadingLead(false), 150);
+            }}
+            onTabClose={handleTabClose}
           />
-
-          <main className="main">
-            {/* NEW: Show LeadsTable OR normal view */}
-            {showLeadsTable ? (
-              <LeadsTable 
-                activeBatchId={activeBatchId}
-                initialTab={activeTab}
+          <div className="content">
+            <section className="content-main">
+              <LeadDetail
+                lead={currentLead}
+                batch={currentBatch || null}
+                allLeads={allLeadsInBatch}
+                loading={loadingLead}
+                onToast={showToast}
+                onLeadUpdate={handleLeadUpdate}
+                onLeadDelete={handleLeadDelete}
+                onNavigate={handleLeadNavigate}
               />
-            ) : (
-              <>
-                <TabBar
-                  tabs={openTabs}
-                  activeLeadId={activeLeadId}
-                  onTabClick={(leadId) => {
-                    setActiveLeadId(leadId);
-                    setLoadingLead(true);
-                    setTimeout(() => setLoadingLead(false), 150);
-                  }}
-                  onTabClose={handleTabClose}
-                />
+            </section>
+          </div>
+        </>
+      );
+    }
 
-                <div className="content">
-                  <section className="content-main">
-                    <LeadDetail
-                      lead={currentLead}
-                      batch={currentBatch || null}
-                      allLeads={allLeadsInBatch}
-                      loading={loadingLead}
-                      onToast={showToast}
-                      onLeadUpdate={handleLeadUpdate}
-                      onLeadDelete={handleLeadDelete}
-                      onNavigate={handleLeadNavigate}
-                    />
-                  </section>
+    if (mainView === 'finder-results') {
+      return (
+        <div className="content">
+          <section className="content-main">
+
+            {/* Search form — always visible at top in results mode */}
+            <div className="card" style={{ marginBottom: '18px' }}>
+              <div className="form-grid">
+                <div>
+                  <div className="label">Industry / Business Type</div>
+                  <input
+                    className="input"
+                    placeholder="e.g. plumbers, accountants"
+                    value={finderQuery}
+                    onChange={(e) => setFinderQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleFinderSearch()}
+                    style={{ marginTop: '6px' }}
+                  />
                 </div>
-              </>
-            )}
-          </main>
+                <div>
+                  <div className="label">Location</div>
+                  <input
+                    className="input"
+                    placeholder="e.g. Glasgow, Edinburgh"
+                    value={finderLocation}
+                    onChange={(e) => setFinderLocation(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleFinderSearch()}
+                    style={{ marginTop: '6px' }}
+                  />
+                </div>
+                <div>
+                  <div className="label">Industry Tag <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></div>
+                  <input
+                    className="input"
+                    placeholder="e.g. Plumbing"
+                    value={finderIndustry}
+                    onChange={(e) => setFinderIndustry(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleFinderSearch()}
+                    style={{ marginTop: '6px' }}
+                  />
+                </div>
+              </div>
+              <div className="button-row" style={{ marginTop: '14px' }}>
+                <button
+                  className="btn"
+                  onClick={handleFinderSearch}
+                  disabled={finderSearching || !finderQuery || !finderLocation}
+                  style={{ opacity: finderSearching || !finderQuery || !finderLocation ? 0.6 : 1 }}
+                >
+                  <Search size={13} />
+                  {finderSearching ? 'Searching...' : 'Search Businesses'}
+                </button>
+                <button
+                  className="btn secondary"
+                  onClick={handleFinderEnrich}
+                  disabled={finderEnriching}
+                  style={{ opacity: finderEnriching ? 0.6 : 1 }}
+                >
+                  <Mail size={13} />
+                  {finderEnriching ? 'Finding emails...' : 'Find Emails'}
+                </button>
+              </div>
+            </div>
 
-          {/* Right Sidebar - Activity & Notes */}
-          <RightSidebar onLeadClick={handleActivityLeadClick} />
+            {finderError && (
+              <div style={{
+                background: 'rgba(255, 78, 106, 0.1)',
+                border: '1px solid rgba(255, 78, 106, 0.4)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                fontSize: '13px',
+                color: 'var(--danger)',
+                marginBottom: '16px'
+              }}>
+                ⚠️ {finderError}
+              </div>
+            )}
+
+            {finderEnrichSummary && (
+              <div style={{
+                background: 'rgba(17, 194, 210, 0.08)',
+                border: '1px solid rgba(17, 194, 210, 0.3)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                fontSize: '13px',
+                color: 'var(--accent)',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                ✓ Found emails for {finderEnrichSummary.enriched} out of {finderEnrichSummary.total} businesses
+              </div>
+            )}
+
+            {/* Results */}
+            <div className="section">
+              <div className="section-header">
+                <div className="section-title">Results</div>
+                <span className="batch-pill">{finderLeads.length} leads</span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {finderLeads.map((lead) => (
+                  <div
+                    key={lead.id}
+                    className="card"
+                    style={{ padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.2s' }}
+                    onClick={() => handleFinderLeadClick(lead)}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(17,194,210,0.4)'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+                          {lead.company}
+                        </div>
+                        <div className="label" style={{ marginBottom: '8px', textTransform: 'none', letterSpacing: 0 }}>
+                          📍 {lead.location}
+                        </div>
+                        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {lead.website && (
+                            
+                              href={lead.website}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ fontSize: '12px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                            >
+                              <Globe size={11} />
+                              {lead.website.replace(/https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
+                            </a>
+                          )}
+                          {lead.phone && (
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Phone size={11} /> {lead.phone}
+                            </span>
+                          )}
+                          {lead.industry && (
+                            <span className="lead-industry-pill">{lead.industry}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ minWidth: '240px' }}>
+                        {lead.emails && lead.emails.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {lead.emails.map((e, i) => (
+                              <div key={i} style={{
+                                background: 'rgba(17, 194, 210, 0.06)',
+                                border: '1px solid rgba(17, 194, 210, 0.18)',
+                                borderRadius: '8px',
+                                padding: '6px 10px',
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <Mail size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                                  <span style={{ fontSize: '12px', color: 'var(--accent)' }}>{e.email}</span>
+                                  <span className="label" style={{ marginLeft: 'auto', fontSize: '10px' }}>
+                                    {e.confidence}%
+                                  </span>
+                                </div>
+                                {(e.first_name || e.position) && (
+                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: '17px' }}>
+                                    {[e.first_name, e.last_name].filter(Boolean).join(' ')}
+                                    {e.position && ` — ${e.position}`}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            — no email yet
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </section>
         </div>
-      )}
+      );
+    }
+
+    // Default — welcome + search form
+    return (
+      <div className="content">
+        <section className="content-main">
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '40vh',
+            textAlign: 'center',
+            padding: '40px 24px 24px',
+            transition: 'all 0.3s ease',
+          }}>
+            <img
+              src="/Logo white.png"
+              alt="Nessie"
+              style={{ width: '80px', marginBottom: '20px', opacity: 0.9 }}
+            />
+            <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '10px' }}>
+              Hey Sami, wrapping up?
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '420px', lineHeight: 1.6, marginBottom: '8px' }}>
+              Nessie's ready to dive into your leads. Pick a batch from the sidebar or search for new businesses below.
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '32px' }}>
+              Pro tip: Use keyboard shortcuts to navigate faster
+            </p>
+          </div>
+
+          {/* Search form below welcome */}
+          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div className="section-header" style={{ marginBottom: '14px' }}>
+              <div className="section-title">Lead Finder</div>
+              <span className="section-tag">powered by Google Places</span>
+            </div>
+            <div className="form-grid">
+              <div>
+                <div className="label">Industry / Business Type</div>
+                <input
+                  className="input"
+                  placeholder="e.g. plumbers, accountants, dentists"
+                  value={finderQuery}
+                  onChange={(e) => setFinderQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFinderSearch()}
+                  style={{ marginTop: '6px' }}
+                />
+              </div>
+              <div>
+                <div className="label">Location</div>
+                <input
+                  className="input"
+                  placeholder="e.g. Glasgow, Edinburgh, Falkirk"
+                  value={finderLocation}
+                  onChange={(e) => setFinderLocation(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFinderSearch()}
+                  style={{ marginTop: '6px' }}
+                />
+              </div>
+              <div>
+                <div className="label">Industry Tag <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></div>
+                <input
+                  className="input"
+                  placeholder="e.g. Plumbing, Finance"
+                  value={finderIndustry}
+                  onChange={(e) => setFinderIndustry(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFinderSearch()}
+                  style={{ marginTop: '6px' }}
+                />
+              </div>
+            </div>
+            <div className="button-row" style={{ marginTop: '14px' }}>
+              <button
+                className="btn"
+                onClick={handleFinderSearch}
+                disabled={finderSearching || !finderQuery || !finderLocation}
+                style={{ opacity: finderSearching || !finderQuery || !finderLocation ? 0.6 : 1 }}
+              >
+                <Search size={13} />
+                {finderSearching ? 'Searching...' : 'Search Businesses'}
+              </button>
+            </div>
+
+            {finderError && (
+              <div style={{
+                background: 'rgba(255, 78, 106, 0.1)',
+                border: '1px solid rgba(255, 78, 106, 0.4)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                fontSize: '13px',
+                color: 'var(--danger)',
+                marginTop: '14px'
+              }}>
+                ⚠️ {finderError}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="layout">
+        <Sidebar
+          batches={batches}
+          leadsByBatch={leadsByBatch}
+          activeBatchId={activeBatchId}
+          activeLeadId={activeLeadId}
+          onBatchClick={handleBatchClick}
+          onLeadClick={handleLeadClick}
+          onToast={showToast}
+          onCreateNewBatch={handleCreateNewBatch}
+          onRefreshBatches={refreshBatches}
+          onDeleteBatch={handleDeleteBatch}
+          onOpenFailedTab={handleOpenFailedTab}
+        />
+
+        <main className="main">
+          {renderMainContent()}
+        </main>
+
+        <RightSidebar onLeadClick={handleActivityLeadClick} />
+      </div>
 
       {toasts.map((toast) => (
         <Toast
@@ -419,7 +771,6 @@ export const NessieQueue = () => {
         />
       ))}
 
-      {/* Stale Batch Warning Banner */}
       {hasStaleBatches && activeView === 'Queue' && (
         <StaleBatchBanner
           staleBatches={staleBatches}
