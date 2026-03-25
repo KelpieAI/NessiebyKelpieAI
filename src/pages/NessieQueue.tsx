@@ -113,6 +113,7 @@ export const NessieQueue = () => {
       );
 
       const data = await res.json();
+      console.log('search-places response:', data)
       if (!res.ok || !data.success) {
         setFinderError(data.error || 'Search failed');
         return;
