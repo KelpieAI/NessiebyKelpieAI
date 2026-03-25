@@ -1,7 +1,7 @@
 import type { Batch } from '../../hooks/useBatches';
 import type { SuccessfulScrape } from '../../types/nessie';
-import { ChevronRight, ChevronDown, AlertTriangle, StopCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { ChevronRight, ChevronDown, AlertTriangle, StopCircle, Search } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface BatchCardProps {
   batch: Batch;
@@ -41,8 +41,13 @@ export const BatchCard = ({
   const status = batch.status;
   const isComplete = status === 'complete';
   const isProcessing = status === 'processing';
-  const isPartial = status === 'partial'; // NEW
+  const isPartial = status === 'partial';
   const isFullyProcessed = actualProcessed >= batch.total_urls;
+  const isLeadFinder = batch.channel === 'lead-finder';
+
+  const leadsWithEmail = useMemo(() => {
+    return leads.filter(lead => lead.emails && lead.emails.length > 0).length;
+  }, [leads]);
 
   useEffect(() => {
     if (isComplete && isFullyProcessed) {
@@ -174,21 +179,47 @@ export const BatchCard = ({
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: 'var(--text)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 marginBottom: '4px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
               }}>
-                {batch.label}
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  color: 'var(--text)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {batch.label}
+                </div>
+                {isLeadFinder && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 6px',
+                    borderRadius: '999px',
+                    background: 'rgba(99, 179, 237, 0.12)',
+                    color: '#63b3ed',
+                    fontSize: '10px',
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    <Search size={10} />
+                    Lead Finder
+                  </div>
+                )}
               </div>
               <div style={{
                 fontSize: '12px',
                 color: 'var(--text-secondary)',
               }}>
-                {successfulCount} leads • {formatDateTime(batch.created_at)}
+                {isLeadFinder
+                  ? `${successfulCount} businesses found • ${formatDateTime(batch.created_at)}`
+                  : `${successfulCount} leads • ${formatDateTime(batch.created_at)}`
+                }
               </div>
             </div>
           </div>
@@ -352,7 +383,7 @@ export const BatchCard = ({
             paddingTop: '8px',
             borderTop: '1px solid rgba(148, 163, 184, 0.1)',
           }}>
-            {showCompletionMessage && isFullyProcessed && (
+            {showCompletionMessage && isFullyProcessed && !isLeadFinder && (
               <div style={{
                 fontSize: '12px',
                 color: 'rgb(34, 197, 94)',
@@ -363,7 +394,7 @@ export const BatchCard = ({
                 ✓ All {batch.total_urls} URLs processed
               </div>
             )}
-            
+
             <div style={{
               fontSize: '11px',
               color: 'var(--text-secondary)',
@@ -371,10 +402,13 @@ export const BatchCard = ({
               alignItems: 'center',
               gap: '4px',
             }}>
-              <span>{successfulCount} success • {failedCount} failed</span>
+              {isLeadFinder
+                ? <span>{successfulCount} leads • {leadsWithEmail} with email</span>
+                : <span>{successfulCount} success • {failedCount} failed</span>
+              }
             </div>
             
-            {failedCount > 0 && (
+            {failedCount > 0 && !isLeadFinder && (
               <div
                 onClick={(e) => {
                   e.stopPropagation();

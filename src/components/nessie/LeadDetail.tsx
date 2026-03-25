@@ -237,7 +237,7 @@ const LeadFinderWelcome = ({ firstName, greeting }: LeadFinderWelcomeProps) => {
       const { data: enrichedLeads } = await supabase
         .from('successful_scrapes')
         .select('*')
-        .eq('batch_id', batchId);
+        .eq('batch_uuid', batchId);
 
       if (enrichedLeads) {
         const mappedResults: SearchResult[] = enrichedLeads.map((lead: any) => ({
