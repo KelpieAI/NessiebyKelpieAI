@@ -572,7 +572,7 @@ export const NessieQueue = () => {
                         </div>
                         <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
                           {lead.website && (
-                            
+  
                               href={lead.website}
                               target="_blank"
                               rel="noreferrer"
