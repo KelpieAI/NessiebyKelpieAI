@@ -41,7 +41,6 @@ export const Sidebar = ({
   const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
   const [lastSelectedBatchId, setLastSelectedBatchId] = useState<string | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
-  console.log('Sidebar rendering with batches:', batches);
 
   const handleToggle = () => {
     setIsCollapsed(!isCollapsed);

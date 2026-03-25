@@ -45,8 +45,6 @@ export const useLeads = (batchId: string | null) => {
           ? 'batch_uuid'
           : 'batch_id';
 
-        console.log('[useLeads] Querying successful_scrapes for', batchIdCondition + ':', batchId);
-
         const { data, error } = await supabase
           .from('successful_scrapes')
           .select('*')
