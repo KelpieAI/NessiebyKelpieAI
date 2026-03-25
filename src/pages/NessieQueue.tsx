@@ -86,6 +86,7 @@ export const NessieQueue = () => {
   // ── Lead Finder handlers ──────────────────────────────────────
 
   const handleFinderSearch = async () => {
+    console.log('search-places response:', data)
     if (!finderQuery || !finderLocation) return;
     setFinderSearching(true);
     setFinderError(null);
