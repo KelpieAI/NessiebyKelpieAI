@@ -15,7 +15,7 @@ import { useBatchTimeout } from '../hooks/useBatchTimeout';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { supabase } from '../lib/supabase';
 import type { SuccessfulScrape } from '../hooks/useLeads';
-import { Search, Mail, Phone, Globe } from 'lucide-react';
+import { Search, Mail, Phone, Globe, X, RefreshCw } from 'lucide-react';
 import '../styles/nessie.css';
 
 interface LeadTab {
@@ -44,6 +44,31 @@ interface FinderLead {
   industry?: string;
 }
 
+interface DuplicateLead {
+  company: string;
+  location: string;
+  website: string;
+  phone: string | null;
+  industry: string;
+  domain: string;
+  existing: {
+    id: string;
+    lead_status: string;
+    emails_enriched: boolean;
+    emails_count: number;
+    emails_sent: number;
+    contacted_at: string | null;
+    created_at: string;
+    tags: string[];
+    batch: {
+      id: string;
+      label: string;
+      channel: string;
+      created_at: string;
+    } | null;
+  };
+}
+
 type MainView = 'welcome' | 'finder-results' | 'lead-detail' | 'leads-table' | 'analytics';
 
 export const NessieQueue = () => {
@@ -63,10 +88,12 @@ export const NessieQueue = () => {
   const [finderSearching, setFinderSearching] = useState(false);
   const [finderEnriching, setFinderEnriching] = useState(false);
   const [finderLeads, setFinderLeads] = useState<FinderLead[]>([]);
+  const [finderDuplicates, setFinderDuplicates] = useState<DuplicateLead[]>([]);
   const [finderBatchId, setFinderBatchId] = useState<string | null>(null);
   const [finderEnrichSummary, setFinderEnrichSummary] = useState<{ enriched: number; total: number } | null>(null);
   const [finderError, setFinderError] = useState<string | null>(null);
   const [hasResults, setHasResults] = useState(false);
+  const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateLead | null>(null);
 
   const navigate = useNavigate();
   const { batches, deleteBatch, refreshBatches } = useBatches();
@@ -86,11 +113,11 @@ export const NessieQueue = () => {
   // ── Lead Finder handlers ──────────────────────────────────────
 
   const handleFinderSearch = async () => {
-    console.log('search-places response:', data)
     if (!finderQuery || !finderLocation) return;
     setFinderSearching(true);
     setFinderError(null);
     setFinderLeads([]);
+    setFinderDuplicates([]);
     setFinderBatchId(null);
     setFinderEnrichSummary(null);
 
@@ -114,17 +141,29 @@ export const NessieQueue = () => {
       );
 
       const data = await res.json();
-      console.log('search-places response:', data)
+
       if (!res.ok || !data.success) {
         setFinderError(data.error || 'Search failed');
         return;
       }
 
-      setFinderLeads(data.leads);
-      setFinderBatchId(data.batch_id);
+      setFinderLeads(data.leads || []);
+      setFinderDuplicates(data.duplicates || []);
+
+      // Only set batch ID and switch view if we got new leads
+      if (data.batch_id) {
+        setFinderBatchId(data.batch_id);
+      }
+
       setHasResults(true);
       setMainView('finder-results');
-      showToast(`Found ${data.leads.length} businesses`);
+
+      if (data.count > 0) {
+        showToast(`Found ${data.count} new businesses`);
+      } else {
+        showToast(`All ${data.skipped} businesses already in pipeline`);
+      }
+
       await refreshBatches();
     } catch (err: any) {
       setFinderError(err.message);
@@ -173,6 +212,51 @@ export const NessieQueue = () => {
     } finally {
       setFinderEnriching(false);
     }
+  };
+
+  const handleReaddDuplicate = async (duplicate: DuplicateLead) => {
+    if (!finderBatchId) {
+      showToast('No active batch to add to');
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase
+      .from('successful_scrapes')
+      .insert({
+        company: duplicate.company,
+        location: duplicate.location,
+        website: duplicate.website,
+        phone: duplicate.phone,
+        industry: duplicate.industry,
+        lead_status: 'new',
+        tags: ['google-places', 'duplicate'],
+        emails: [],
+        batch_id: finderBatchId,
+        batch_uuid: finderBatchId,
+        owner_user_id: session?.user.id || null,
+      })
+
+    if (!error) {
+      showToast(`${duplicate.company} re-added to this batch`);
+      setFinderLeads(prev => [...prev, {
+        id: crypto.randomUUID(),
+        company: duplicate.company,
+        location: duplicate.location,
+        website: duplicate.website,
+        phone: duplicate.phone,
+        industry: duplicate.industry,
+        emails: [],
+        lead_status: 'new',
+        batch_id: finderBatchId,
+        batch_uuid: finderBatchId,
+        tags: ['google-places', 'duplicate'],
+      } as FinderLead]);
+      setFinderDuplicates(prev => prev.filter(d => d.domain !== duplicate.domain));
+    } else {
+      showToast('Failed to re-add lead');
+    }
+    setSelectedDuplicate(null);
   };
 
   // ── Batch / Lead handlers ─────────────────────────────────────
@@ -310,7 +394,6 @@ export const NessieQueue = () => {
     setActiveTab('all');
 
     if (batch?.channel === 'lead-finder') {
-      // Load leads for this finder batch and show finder-results view
       supabase
         .from('successful_scrapes')
         .select('*')
@@ -318,15 +401,14 @@ export const NessieQueue = () => {
         .then(({ data }) => {
           if (data) {
             setFinderLeads(data as FinderLead[]);
+            setFinderDuplicates([]);
             setFinderBatchId(batchId);
             setHasResults(true);
             setMainView('finder-results');
-            // Also cache in leadsByBatch for detail view
             setLeadsByBatch(prev => ({ ...prev, [batchId]: data as SuccessfulScrape[] }));
           }
         });
     } else {
-      // Normal scraper batch
       setMainView('lead-detail');
       const batchLeads = leadsByBatch[batchId] || [];
       if (batchLeads.length > 0) {
@@ -344,7 +426,6 @@ export const NessieQueue = () => {
     if (lead) openLead(lead, batchId);
   };
 
-  // Click a lead from the finder-results cards
   const handleFinderLeadClick = (lead: FinderLead) => {
     const scrape = lead as unknown as SuccessfulScrape;
     setLeadsByBatch(prev => ({
@@ -398,7 +479,358 @@ export const NessieQueue = () => {
   const currentBatch = batches.find((b) => b.id === activeBatchId);
   const allLeadsInBatch = activeBatchId ? (leadsByBatch[activeBatchId] || []) : [];
 
-  // ── Render ────────────────────────────────────────────────────
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+  };
+
+  // ── Render helpers ────────────────────────────────────────────
+
+  const renderLeadCard = (lead: FinderLead) => (
+    <div
+      key={lead.id}
+      className="card"
+      style={{ padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.2s' }}
+      onClick={() => handleFinderLeadClick(lead)}
+      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(17,194,210,0.4)'}
+      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+            {lead.company}
+          </div>
+          <div className="label" style={{ marginBottom: '8px', textTransform: 'none', letterSpacing: 0 }}>
+            📍 {lead.location}
+          </div>
+          <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {lead.website && (
+              
+                href={lead.website}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{ fontSize: '12px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+              >
+                <Globe size={11} />
+                {lead.website.replace(/https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
+              </a>
+            )}
+            {lead.phone && (
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Phone size={11} /> {lead.phone}
+              </span>
+            )}
+            {lead.industry && (
+              <span className="lead-industry-pill">{lead.industry}</span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ minWidth: '240px' }}>
+          {lead.emails && lead.emails.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {lead.emails.map((e, i) => (
+                <div key={i} style={{
+                  background: 'rgba(17, 194, 210, 0.06)',
+                  border: '1px solid rgba(17, 194, 210, 0.18)',
+                  borderRadius: '8px',
+                  padding: '6px 10px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Mail size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '12px', color: 'var(--accent)' }}>{e.email}</span>
+                    <span className="label" style={{ marginLeft: 'auto', fontSize: '10px' }}>
+                      {e.confidence}%
+                    </span>
+                  </div>
+                  {(e.first_name || e.position) && (
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: '17px' }}>
+                      {[e.first_name, e.last_name].filter(Boolean).join(' ')}
+                      {e.position && ` — ${e.position}`}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              — no email yet
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDuplicateCard = (dup: DuplicateLead) => (
+    <div
+      key={dup.domain}
+      className="card"
+      style={{
+        padding: '12px 14px',
+        cursor: 'pointer',
+        opacity: 0.55,
+        transition: 'all 0.2s',
+        position: 'relative',
+      }}
+      onClick={() => setSelectedDuplicate(dup)}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '0.8';
+        e.currentTarget.style.borderColor = 'rgba(246,173,85,0.4)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.opacity = '0.55';
+        e.currentTarget.style.borderColor = 'var(--border)';
+      }}
+    >
+      {/* Duplicate badge */}
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '2px 8px',
+        borderRadius: '999px',
+        background: 'rgba(246, 173, 85, 0.12)',
+        color: '#f6ad55',
+        fontSize: '10px',
+        fontWeight: 500,
+      }}>
+        <RefreshCw size={9} />
+        Duplicate
+      </div>
+
+      <div style={{ flex: 1, paddingRight: '90px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+          {dup.company}
+        </div>
+        <div className="label" style={{ marginBottom: '8px', textTransform: 'none', letterSpacing: 0 }}>
+          📍 {dup.location}
+        </div>
+        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {dup.website && (
+            
+              href={dup.website}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ fontSize: '12px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+            >
+              <Globe size={11} />
+              {dup.website.replace(/https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
+            </a>
+          )}
+          {dup.phone && (
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Phone size={11} /> {dup.phone}
+            </span>
+          )}
+          {dup.industry && (
+            <span className="lead-industry-pill">{dup.industry}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDuplicateModal = () => {
+    if (!selectedDuplicate) return null;
+    const dup = selectedDuplicate;
+    const ex = dup.existing;
+
+    const statusColour = ex.lead_status === 'contacted'
+      ? '#11c2d2'
+      : ex.lead_status === 'converted'
+      ? 'rgb(34,197,94)'
+      : '#7a94a3';
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+        onClick={() => setSelectedDuplicate(null)}
+      >
+        <div
+          style={{
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '14px',
+            padding: '24px',
+            maxWidth: '480px',
+            width: '90%',
+            position: 'relative',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Close */}
+          <button
+            onClick={() => setSelectedDuplicate(null)}
+            style={{
+              position: 'absolute',
+              top: '14px',
+              right: '14px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <X size={16} />
+          </button>
+
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700 }}>{dup.company}</div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 8px',
+              borderRadius: '999px',
+              background: 'rgba(246, 173, 85, 0.12)',
+              color: '#f6ad55',
+              fontSize: '10px',
+              fontWeight: 500,
+            }}>
+              <RefreshCw size={9} />
+              Duplicate
+            </div>
+          </div>
+
+          {/* Already exists in */}
+          <div style={{ marginBottom: '16px' }}>
+            <div className="label" style={{ marginBottom: '6px' }}>Already exists in</div>
+            <div style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              padding: '10px 12px',
+              fontSize: '13px',
+            }}>
+              <div style={{ fontWeight: 500, marginBottom: '4px' }}>
+                {ex.batch?.label || 'Unknown batch'}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {ex.batch?.channel === 'lead-finder' ? (
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '999px',
+                    background: 'rgba(99,179,237,0.12)',
+                    color: '#63b3ed',
+                  }}>🔍 Lead Finder</span>
+                ) : (
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '999px',
+                    background: 'rgba(17,194,210,0.12)',
+                    color: 'var(--accent)',
+                  }}>🌐 Scraper</span>
+                )}
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Added {formatDate(ex.created_at)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Status */}
+          <div style={{ marginBottom: '16px' }}>
+            <div className="label" style={{ marginBottom: '6px' }}>Current status</div>
+            <span style={{
+              fontSize: '11px',
+              padding: '3px 10px',
+              borderRadius: '999px',
+              background: `${statusColour}20`,
+              color: statusColour,
+              border: `1px solid ${statusColour}40`,
+              textTransform: 'capitalize',
+            }}>
+              {ex.lead_status || 'new'}
+            </span>
+          </div>
+
+          {/* Activity */}
+          <div style={{ marginBottom: '20px' }}>
+            <div className="label" style={{ marginBottom: '8px' }}>Activity</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' }}>
+              <div style={{ color: ex.emails_enriched ? 'var(--accent)' : 'var(--text-muted)' }}>
+                {ex.emails_enriched
+                  ? `✓ Emails enriched (${ex.emails_count} found)`
+                  : '— No emails found yet'}
+              </div>
+              <div style={{ color: ex.emails_sent > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+                {ex.emails_sent > 0
+                  ? `✓ ${ex.emails_sent} outreach email${ex.emails_sent > 1 ? 's' : ''} sent`
+                  : '— No outreach sent yet'}
+              </div>
+              <div style={{ color: 'var(--text-muted)' }}>
+                {ex.contacted_at
+                  ? `Last contacted: ${formatDate(ex.contacted_at)}`
+                  : '— Not yet contacted'}
+              </div>
+            </div>
+          </div>
+
+          {/* Tags */}
+          {ex.tags && ex.tags.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div className="label" style={{ marginBottom: '6px' }}>Tags</div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {ex.tags.map((tag, i) => (
+                  <span key={i} className="lead-industry-pill">{tag}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer buttons */}
+          <div className="button-row">
+            <button
+              className="btn secondary"
+              onClick={() => handleReaddDuplicate(dup)}
+            >
+              <RefreshCw size={12} />
+              Re-add to this batch
+            </button>
+            <button
+              className="btn"
+              onClick={() => {
+                if (ex.batch?.id) {
+                  const mockLead = {
+                    id: ex.id,
+                    batch_uuid: ex.batch.id,
+                    batch_id: ex.batch.id,
+                  } as unknown as FinderLead;
+                  handleFinderLeadClick(mockLead);
+                }
+                setSelectedDuplicate(null);
+              }}
+            >
+              View Lead
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── Main render ───────────────────────────────────────────────
 
   const renderMainContent = () => {
     if (activeView === 'Analytics') {
@@ -457,7 +889,7 @@ export const NessieQueue = () => {
         <div className="content">
           <section className="content-main">
 
-            {/* Search form — always visible at top in results mode */}
+            {/* Search form */}
             <div className="card" style={{ marginBottom: '18px' }}>
               <div className="form-grid">
                 <div>
@@ -504,15 +936,17 @@ export const NessieQueue = () => {
                   <Search size={13} />
                   {finderSearching ? 'Searching...' : 'Search Businesses'}
                 </button>
-                <button
-                  className="btn secondary"
-                  onClick={handleFinderEnrich}
-                  disabled={finderEnriching}
-                  style={{ opacity: finderEnriching ? 0.6 : 1 }}
-                >
-                  <Mail size={13} />
-                  {finderEnriching ? 'Finding emails...' : 'Find Emails'}
-                </button>
+                {finderBatchId && (
+                  <button
+                    className="btn secondary"
+                    onClick={handleFinderEnrich}
+                    disabled={finderEnriching}
+                    style={{ opacity: finderEnriching ? 0.6 : 1 }}
+                  >
+                    <Mail size={13} />
+                    {finderEnriching ? 'Finding emails...' : 'Find Emails'}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -547,92 +981,63 @@ export const NessieQueue = () => {
               </div>
             )}
 
-            {/* Results */}
-            <div className="section">
-              <div className="section-header">
-                <div className="section-title">Results</div>
-                <span className="batch-pill">{finderLeads.length} leads</span>
+            {/* New leads */}
+            {finderLeads.length > 0 && (
+              <div className="section">
+                <div className="section-header">
+                  <div className="section-title">Results</div>
+                  <span className="batch-pill">{finderLeads.length} new leads</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {finderLeads.map(renderLeadCard)}
+                </div>
               </div>
+            )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {finderLeads.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className="card"
-                    style={{ padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.2s' }}
-                    onClick={() => handleFinderLeadClick(lead)}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(17,194,210,0.4)'}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
-                          {lead.company}
-                        </div>
-                        <div className="label" style={{ marginBottom: '8px', textTransform: 'none', letterSpacing: 0 }}>
-                          📍 {lead.location}
-                        </div>
-                        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          {lead.website && ( <a
-  
-                              href={lead.website}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ fontSize: '12px', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
-                            >
-                              <Globe size={11} />
-                              {lead.website.replace(/https?:\/\/(www\.)?/, '').replace(/\/$/, '')}
-                            </a>
-                          )}
-                          {lead.phone && (
-                            <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Phone size={11} /> {lead.phone}
-                            </span>
-                          )}
-                          {lead.industry && (
-                            <span className="lead-industry-pill">{lead.industry}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div style={{ minWidth: '240px' }}>
-                        {lead.emails && lead.emails.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            {lead.emails.map((e, i) => (
-                              <div key={i} style={{
-                                background: 'rgba(17, 194, 210, 0.06)',
-                                border: '1px solid rgba(17, 194, 210, 0.18)',
-                                borderRadius: '8px',
-                                padding: '6px 10px',
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <Mail size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                                  <span style={{ fontSize: '12px', color: 'var(--accent)' }}>{e.email}</span>
-                                  <span className="label" style={{ marginLeft: 'auto', fontSize: '10px' }}>
-                                    {e.confidence}%
-                                  </span>
-                                </div>
-                                {(e.first_name || e.position) && (
-                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: '17px' }}>
-                                    {[e.first_name, e.last_name].filter(Boolean).join(' ')}
-                                    {e.position && ` — ${e.position}`}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                            — no email yet
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            {/* Duplicates */}
+            {finderDuplicates.length > 0 && (
+              <div className="section" style={{ marginTop: '24px' }}>
+                <div className="section-header">
+                  <div className="section-title">Already in Pipeline</div>
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: 'rgba(246, 173, 85, 0.12)',
+                    color: '#f6ad55',
+                    border: '1px solid rgba(246,173,85,0.3)',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                  }}>
+                    {finderDuplicates.length} duplicate{finderDuplicates.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                  These businesses are already in your pipeline. Click any card to view their history or re-add them.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {finderDuplicates.map(renderDuplicateCard)}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* All duplicates — no new leads */}
+            {finderLeads.length === 0 && finderDuplicates.length > 0 && (
+              <div style={{
+                background: 'rgba(246, 173, 85, 0.08)',
+                border: '1px solid rgba(246,173,85,0.3)',
+                borderRadius: '10px',
+                padding: '14px 16px',
+                fontSize: '13px',
+                color: '#f6ad55',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                🔄 All {finderDuplicates.length} businesses from this search are already in your pipeline
+              </div>
+            )}
 
           </section>
         </div>
@@ -651,7 +1056,6 @@ export const NessieQueue = () => {
             minHeight: '40vh',
             textAlign: 'center',
             padding: '40px 24px 24px',
-            transition: 'all 0.3s ease',
           }}>
             <img
               src="/Logo white.png"
@@ -669,7 +1073,6 @@ export const NessieQueue = () => {
             </p>
           </div>
 
-          {/* Search form below welcome */}
           <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="section-header" style={{ marginBottom: '14px' }}>
               <div className="section-title">Lead Finder</div>
@@ -764,6 +1167,9 @@ export const NessieQueue = () => {
 
         <RightSidebar onLeadClick={handleActivityLeadClick} />
       </div>
+
+      {/* Duplicate modal */}
+      {renderDuplicateModal()}
 
       {toasts.map((toast) => (
         <Toast
