@@ -612,7 +612,7 @@ export const NessieQueue = () => {
           📍 {dup.location}
         </div>
         <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {dup.website && (
+          {dup.website && ( <a
             
               href={dup.website}
               target="_blank"
