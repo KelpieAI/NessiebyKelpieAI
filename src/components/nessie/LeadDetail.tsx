@@ -37,6 +37,31 @@ interface SearchResult {
   }>;
 }
 
+interface DuplicateLead {
+  company: string;
+  location: string;
+  website: string;
+  phone: string | null;
+  industry: string;
+  domain: string;
+  existing: {
+    id: string;
+    lead_status: string;
+    emails_enriched: boolean;
+    emails_count: number;
+    emails_sent: number;
+    contacted_at: string | null;
+    created_at: string;
+    tags: string[];
+    batch: {
+      id: string;
+      label: string;
+      channel: string;
+      created_at: string;
+    } | null;
+  };
+}
+
 interface LeadDetailProps {
   lead: SuccessfulScrape | null;
   batch: Batch | null;
@@ -142,12 +167,15 @@ const LeadFinderWelcome = ({ firstName, greeting }: LeadFinderWelcomeProps) => {
   const [location, setLocation] = useState('');
   const [industry, setIndustry] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateLead[]>([]);
+  const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateLead | null>(null);
   const [hasResults, setHasResults] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enrichmentResult, setEnrichmentResult] = useState<{ found: number; total: number } | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const handleSearch = async () => {
     if (!query.trim() || !location.trim()) {
@@ -186,13 +214,78 @@ const LeadFinderWelcome = ({ firstName, greeting }: LeadFinderWelcomeProps) => {
       }
 
       const data = await response.json();
-      setResults(data.results || []);
+      const mappedLeads: SearchResult[] = (data.leads || []).map((lead: any) => ({
+        name: lead.company || '',
+        address: lead.location || '',
+        website: lead.website || '',
+        phone: lead.phone || '',
+        industry: lead.industry || '',
+        emails: [],
+      }));
+      setResults(mappedLeads);
+      setDuplicates(data.duplicates || []);
       setBatchId(data.batch_id || null);
       setHasResults(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleReaddDuplicate = async (duplicate: DuplicateLead) => {
+    if (!batchId) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error: insertError } = await supabase
+        .from('successful_scrapes')
+        .insert({
+          company: duplicate.company,
+          location: duplicate.location,
+          website: duplicate.website,
+          phone: duplicate.phone,
+          industry: duplicate.industry,
+          lead_status: 'new',
+          tags: ['google-places', 'duplicate'],
+          emails: [],
+          batch_id: batchId,
+          batch_uuid: batchId,
+          owner_user_id: session?.user.id || null,
+        });
+
+      if (!insertError) {
+        setToastMessage(`${duplicate.company} re-added to this batch`);
+        setTimeout(() => setToastMessage(null), 3000);
+        setResults(prev => [...prev, {
+          name: duplicate.company,
+          address: duplicate.location,
+          website: duplicate.website,
+          phone: duplicate.phone || '',
+          industry: duplicate.industry,
+          emails: [],
+        }]);
+        setDuplicates(prev => prev.filter(d => d.domain !== duplicate.domain));
+      }
+    } catch (err) {
+      setError('Failed to re-add duplicate');
+    }
+    setSelectedDuplicate(null);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'new': return { bg: 'rgba(148, 163, 184, 0.1)', text: '#94a3b8' };
+      case 'contacted': return { bg: 'rgba(59, 130, 246, 0.1)', text: '#3b82f6' };
+      case 'replied': return { bg: 'rgba(251, 191, 36, 0.1)', text: '#fbbf24' };
+      case 'qualified': return { bg: 'rgba(34, 197, 94, 0.1)', text: '#22c55e' };
+      case 'dead': return { bg: 'rgba(239, 68, 68, 0.1)', text: '#ef4444' };
+      default: return { bg: 'rgba(148, 163, 184, 0.1)', text: '#94a3b8' };
     }
   };
 
@@ -592,6 +685,271 @@ const LeadFinderWelcome = ({ firstName, greeting }: LeadFinderWelcomeProps) => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Duplicates Section */}
+      {hasResults && duplicates.length > 0 && (
+        <div style={{ marginTop: '32px' }}>
+          <div className="section-header" style={{ marginBottom: '16px' }}>
+            <span className="section-title">Already in Pipeline</span>
+            <span
+              style={{
+                padding: '2px 8px',
+                borderRadius: '999px',
+                background: 'rgba(246, 173, 85, 0.12)',
+                color: '#f6ad55',
+                fontSize: '11px',
+                fontWeight: 500,
+              }}
+            >
+              {duplicates.length} duplicates
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {duplicates.map((dup, idx) => (
+              <div
+                key={idx}
+                className="card"
+                onClick={() => setSelectedDuplicate(dup)}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: '24px',
+                  opacity: 0.6,
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.8'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 6px',
+                    borderRadius: '999px',
+                    background: 'rgba(246, 173, 85, 0.12)',
+                    color: '#f6ad55',
+                    fontSize: '10px',
+                    fontWeight: 500,
+                  }}
+                >
+                  <span>🔄</span>
+                  Duplicate
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', marginBottom: '6px' }}>
+                    {dup.company}
+                  </div>
+
+                  {dup.location && (
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '12px' }}>📍</span>
+                      {dup.location}
+                    </div>
+                  )}
+
+                  {dup.website && (
+                    <div style={{ fontSize: '12px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Globe size={12} color="var(--accent)" />
+                      <a
+                        href={dup.website.startsWith('http') ? dup.website : `https://${dup.website}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'var(--accent)', textDecoration: 'none' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {dup.website}
+                      </a>
+                    </div>
+                  )}
+
+                  {dup.phone && (
+                    <div style={{ fontSize: '12px', color: '#e2e8f0', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Phone size={12} color="var(--text-muted)" />
+                      {dup.phone}
+                    </div>
+                  )}
+
+                  {dup.industry && (
+                    <span className="lead-industry-pill">{dup.industry}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Detail Modal */}
+      {selectedDuplicate && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.6)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setSelectedDuplicate(null)}
+        >
+          <div
+            className="card"
+            style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: '14px',
+              padding: '24px',
+              maxWidth: '480px',
+              width: '90%',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedDuplicate(null)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '18px',
+                padding: '4px',
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <span style={{ fontSize: '16px', fontWeight: 600, color: '#e2e8f0' }}>
+                {selectedDuplicate.company}
+              </span>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 6px',
+                  borderRadius: '999px',
+                  background: 'rgba(246, 173, 85, 0.12)',
+                  color: '#f6ad55',
+                  fontSize: '10px',
+                  fontWeight: 500,
+                }}
+              >
+                🔄 Duplicate
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <div className="label" style={{ marginBottom: '6px' }}>Already exists in:</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '13px', color: '#e2e8f0' }}>
+                  {selectedDuplicate.existing.batch?.label || 'Unknown batch'}
+                </span>
+                {selectedDuplicate.existing.batch?.channel === 'lead-finder' ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '999px', background: 'rgba(99, 179, 237, 0.12)', color: '#63b3ed', fontSize: '10px', fontWeight: 500 }}>
+                    🔍 Lead Finder
+                  </span>
+                ) : (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 6px', borderRadius: '999px', background: 'rgba(17, 194, 210, 0.12)', color: 'var(--accent)', fontSize: '10px', fontWeight: 500 }}>
+                    Scraper
+                  </span>
+                )}
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Added {selectedDuplicate.existing.batch?.created_at ? formatDate(selectedDuplicate.existing.batch.created_at) : formatDate(selectedDuplicate.existing.created_at)}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <div className="label" style={{ marginBottom: '6px' }}>Current status:</div>
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  background: getStatusColor(selectedDuplicate.existing.lead_status).bg,
+                  color: getStatusColor(selectedDuplicate.existing.lead_status).text,
+                }}
+              >
+                {selectedDuplicate.existing.lead_status}
+              </span>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <div className="label" style={{ marginBottom: '6px' }}>Activity:</div>
+              <div style={{ fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {selectedDuplicate.existing.emails_enriched ? (
+                  <span style={{ color: 'var(--accent)' }}>
+                    <Check size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                    Emails enriched ({selectedDuplicate.existing.emails_count} found)
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)' }}>No emails found yet</span>
+                )}
+
+                <span style={{ color: selectedDuplicate.existing.emails_sent > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
+                  {selectedDuplicate.existing.emails_sent} outreach emails sent
+                </span>
+
+                <span style={{ color: 'var(--text-muted)' }}>
+                  {selectedDuplicate.existing.contacted_at
+                    ? `Last contacted: ${formatDate(selectedDuplicate.existing.contacted_at)}`
+                    : 'Not yet contacted'}
+                </span>
+              </div>
+            </div>
+
+            {selectedDuplicate.existing.tags && selectedDuplicate.existing.tags.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div className="label" style={{ marginBottom: '6px' }}>Tags:</div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {selectedDuplicate.existing.tags.map((tag, i) => (
+                    <span key={i} className="lead-industry-pill">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="button-row" style={{ marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button
+                className="btn secondary"
+                onClick={() => handleReaddDuplicate(selectedDuplicate)}
+              >
+                Re-add to this batch
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setSelectedDuplicate(null);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toastMessage && (
+        <div className="toast">{toastMessage}</div>
       )}
     </div>
   );
