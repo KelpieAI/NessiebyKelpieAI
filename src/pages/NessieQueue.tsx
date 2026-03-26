@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sidebar } from '../components/nessie/Sidebar';
 import { TabBar } from '../components/nessie/TabBar';
 import { LeadDetail } from '../components/nessie/LeadDetail';
-import { RightSidebar } from '../components/nessie/RightSidebar';
 import { Toast } from '../components/nessie/Toast';
 import { AnalyticsPage } from './AnalyticsPage';
 import LeadsTable from '../components/nessie/LeadsTable';
@@ -1145,30 +1143,9 @@ export const NessieQueue = () => {
   };
 
   return (
-    <div>
-      <div className="layout">
-        <Sidebar
-          batches={batches}
-          leadsByBatch={leadsByBatch}
-          activeBatchId={activeBatchId}
-          activeLeadId={activeLeadId}
-          onBatchClick={handleBatchClick}
-          onLeadClick={handleLeadClick}
-          onToast={showToast}
-          onCreateNewBatch={handleCreateNewBatch}
-          onRefreshBatches={refreshBatches}
-          onDeleteBatch={handleDeleteBatch}
-          onOpenFailedTab={handleOpenFailedTab}
-        />
+    <>
+      {renderMainContent()}
 
-        <main className="main">
-          {renderMainContent()}
-        </main>
-
-        <RightSidebar onLeadClick={handleActivityLeadClick} />
-      </div>
-
-      {/* Duplicate modal */}
       {renderDuplicateModal()}
 
       {toasts.map((toast) => (
@@ -1187,6 +1164,6 @@ export const NessieQueue = () => {
           onDismiss={() => {}}
         />
       )}
-    </div>
+    </>
   );
 };
