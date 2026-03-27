@@ -1349,3 +1349,52 @@ h1, h2, h3 { font-family: var(--font-head); }
 .ld-action-btn--disabled { opacity: 0.45; cursor: not-allowed; }
 .ld-delete-confirm { display: flex; align-items: center; gap: 8px; }
 .ld-delete-label { font-size: 13px; color: var(--danger); font-weight: 500; }
+
+
+/* ════════════════════════════════════════════════════════════
+   SIDEBAR DRAG HANDLE
+   ════════════════════════════════════════════════════════════ */
+
+.sidebar-drag-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The visible indicator line */
+.sidebar-drag-handle::after {
+  content: '';
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.sidebar-drag-handle:hover::after {
+  background: var(--teal-border);
+}
+
+/* Flash teal while actively dragging */
+.sidebar-drag-handle:active::after {
+  background: var(--teal);
+}
+
+/* Make sure sidebar doesn't clip the handle */
+.sidebar {
+  overflow: visible !important;
+  position: relative;
+}
+
+/* But the inner scroll area should still clip */
+.sidebar .batch-list {
+  overflow-y: auto;
+}
