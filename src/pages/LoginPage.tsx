@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../hooks/useTheme';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -11,38 +12,26 @@ export const LoginPage = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
+  // Apply theme on the login page too
+  useTheme();
+
   useEffect(() => {
     const sequence = ['w', 'w', 's', 's', 'a', 'd'];
     let index = 0;
-
     const handleKeyPress = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-
-      if (key === sequence[index]) {
+      if (e.key.toLowerCase() === sequence[index]) {
         index++;
-
         if (index === sequence.length) {
-          // Cheat code completed – toggle dev mode
           setShowDevMode(prev => {
-            const next = !prev;
-
-            // When activating dev mode, pre-fill credentials
-            if (!prev) {
-              setEmail('DEVELOPER');
-              setPassword('cf56b3ef-2fb1-4068-a603-70ceb311959f');
-            }
-
-            return next;
+            if (!prev) { setEmail('DEVELOPER'); setPassword('cf56b3ef-2fb1-4068-a603-70ceb311959f'); }
+            return !prev;
           });
-
-          index = 0; // reset after success
+          index = 0;
         }
       } else {
-        // Wrong key – reset sequence
         index = 0;
       }
     };
-
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
@@ -51,289 +40,115 @@ export const LoginPage = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     const { data, error } = await signIn(email, password);
-
-    if (error) {
-      setError(error.message || 'Failed to sign in');
-      setLoading(false);
-      return;
-    }
-
-    if (data) {
-      navigate('/queue');
-    }
+    if (error) { setError(error.message || 'Failed to sign in'); setLoading(false); return; }
+    if (data) navigate('/queue');
   };
 
-  // DEV ONLY: Quick login bypass
   const handleDevLogin = async () => {
     setError('');
     setLoading(true);
-    
-    // Hardcoded dev credentials (only accessible via keyboard cheat code)
-    const devEmail = 'sami.mustafa@kelpieai.co.uk';
-    const devPassword = 'KilluminatI2211!'; // ← CHANGE THIS!
-    
-    const { data, error } = await signIn(devEmail, devPassword);
-    
-    if (error) {
-      setError('Dev login failed: ' + error.message);
-      setLoading(false);
-      return;
-    }
-    
-    if (data) {
-      navigate('/queue');
-    }
+    const { data, error } = await signIn('sami.mustafa@kelpieai.co.uk', 'KilluminatI2211!');
+    if (error) { setError('Dev login failed: ' + error.message); setLoading(false); return; }
+    if (data) navigate('/queue');
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0a0f14',
-      fontFamily: "'Space Grotesk', sans-serif",
-      padding: '20px',
-    }}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap"
-        rel="stylesheet"
-      />
+    <div className="login-page">
+      {/* Background grid texture */}
+      <div className="login-grid" />
 
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-      }}>
-        {/* Logo & Header */}
-        <div style={{
-          textAlign: 'center',
-          marginBottom: '40px',
-        }}>
-          <div style={{
-            fontSize: '64px',
-            marginBottom: '16px',
-          }}>
-            🐉
+      {/* Teal radial glow */}
+      <div className="login-glow" />
+
+      <div className="login-card-wrap">
+
+        {/* Logo & header */}
+        <div className="login-header">
+          <div className="login-logo-box">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <path d="M14 2C7.37 2 2 7.37 2 14s5.37 12 12 12 12-5.37 12-12S20.63 2 14 2z" fill="rgba(10,191,163,0.12)" stroke="#0ABFA3" strokeWidth="1.2"/>
+              <path d="M10 11.5c0-2.21 1.79-4 4-4h.5c2.21 0 4 1.79 4 4 0 1.36-.68 2.56-1.71 3.28L14 17.5l-2.79-2.72A3.99 3.99 0 0110 11.5z" fill="#0ABFA3" opacity="0.85"/>
+              <circle cx="14" cy="21" r="1.5" fill="#0ABFA3" opacity="0.4"/>
+            </svg>
           </div>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 700,
-            color: '#e2e8f0',
-            marginBottom: '8px',
-            fontFamily: "'Playfair Display', serif",
-          }}>
-            Welcome to Nessie
-          </h1>
-          <p style={{
-            fontSize: '15px',
-            color: '#94a3b8',
-          }}>
-            Kelpie AI Outreach Console
-          </p>
+          <h1 className="login-title">Welcome to Nessie</h1>
+          <p className="login-subtitle">Kelpie AI Outreach Console</p>
         </div>
 
-        {/* Login Form */}
-        <div style={{
-          background: '#1a2634',
-          border: '1px solid #2d3748',
-          borderRadius: '12px',
-          padding: '32px',
-        }}>
+        {/* Form card */}
+        <div className="login-card">
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#94a3b8',
-                marginBottom: '8px',
-              }}>
-                Email
-              </label>
+
+            <div className="login-field">
+              <label className="login-label">Email</label>
               <input
                 type="email"
+                className="login-input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="you@kelpieai.co.uk"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(148, 163, 184, 0.2)',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  color: '#e2e8f0',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#14b8a6';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-                }}
+                autoComplete="email"
               />
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#94a3b8',
-                marginBottom: '8px',
-              }}>
-                Password
-              </label>
+            <div className="login-field">
+              <label className="login-label">Password</label>
               <input
                 type="password"
+                className="login-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(148, 163, 184, 0.2)',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  color: '#e2e8f0',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  outline: 'none',
-                  transition: 'border-color 0.2s',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = '#14b8a6';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-                }}
+                autoComplete="current-password"
               />
             </div>
 
             {error && (
-              <div style={{
-                padding: '12px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '6px',
-                marginBottom: '20px',
-              }}>
-                <p style={{
-                  fontSize: '13px',
-                  color: '#ef4444',
-                  margin: 0,
-                }}>
-                  {error}
-                </p>
+              <div className="login-error">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M7 1.5L13 12.5H1L7 1.5z" stroke="var(--danger)" strokeWidth="1.3" strokeLinejoin="round"/>
+                  <path d="M7 5.5v3" stroke="var(--danger)" strokeWidth="1.3" strokeLinecap="round"/>
+                  <circle cx="7" cy="10.5" r="0.7" fill="var(--danger)"/>
+                </svg>
+                {error}
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#14b8a6',
-                color: '#021014',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '15px',
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1,
-                transition: 'opacity 0.2s',
-                fontFamily: "'Space Grotesk', sans-serif",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) e.currentTarget.style.opacity = '0.8';
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) e.currentTarget.style.opacity = '1';
-              }}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
+            <button type="submit" className="login-btn" disabled={loading}>
+              {loading ? (
+                <>
+                  <div className="login-spinner" />
+                  Signing in…
+                </>
+              ) : 'Sign In'}
             </button>
 
-            {/* SECRET DEV MODE: Only visible via W W S S A D */}
+            {/* Secret dev mode — WWSSAD */}
             {showDevMode && (
               <button
                 type="button"
+                className="login-dev-btn"
                 onClick={handleDevLogin}
                 disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  marginTop: '12px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  color: '#ef4444',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.6 : 1,
-                  transition: 'all 0.2s',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                  }
-                }}
-                title="Secret dev login - type W W S S A D"
+                title="Secret dev login — type W W S S A D"
               >
                 🔓 Dev Quick Login
               </button>
             )}
           </form>
 
-          <div style={{
-            marginTop: '20px',
-            textAlign: 'center',
-          }}>
-            <a
-              href="#"
-              style={{
-                fontSize: '13px',
-                color: '#14b8a6',
-                textDecoration: 'none',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.textDecoration = 'underline';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.textDecoration = 'none';
-              }}
-            >
-              Forgot password?
-            </a>
+          <div className="login-forgot">
+            <a href="#" className="login-link">Forgot password?</a>
           </div>
         </div>
 
         {/* Footer */}
-        <div style={{
-          marginTop: '24px',
-          textAlign: 'center',
-        }}>
-          <p style={{
-            fontSize: '13px',
-            color: '#64748b',
-          }}>
-            Powered by Kelpie AI · Version 0.9.1 · Dev Build - INTERNAL USE ONLY
-          </p>
-        </div>
+        <p className="login-footer">
+          Powered by Kelpie AI · v0.10.0 · Internal use only
+        </p>
       </div>
     </div>
   );
