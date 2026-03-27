@@ -1046,35 +1046,22 @@ export const NessieQueue = () => {
     return (
       <div className="content">
         <section className="content-main">
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '40vh',
-            textAlign: 'center',
-            padding: '40px 24px 24px',
-          }}>
-            <img
-              src="/Logo white.png"
-              alt="Nessie"
-              style={{ width: '80px', marginBottom: '20px', opacity: 0.9 }}
-            />
-            <h2 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '10px' }}>
-              Hey Sami, wrapping up?
-            </h2>
-            <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '420px', lineHeight: 1.6, marginBottom: '8px' }}>
+          <div className="welcome-hero">
+            <div className="welcome-logo">
+              <img src="/Logo white.png" alt="Nessie" />
+            </div>
+            <div className="welcome-eyebrow">Ready to Hunt</div>
+            <h2 className="welcome-title">Hey Sami, where are we<br />targeting today?</h2>
+            <p className="welcome-sub">
               Nessie's ready to dive into your leads. Pick a batch from the sidebar or search for new businesses below.
             </p>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '32px' }}>
-              Pro tip: Use keyboard shortcuts to navigate faster
-            </p>
+            <p className="welcome-protip">Pro tip: Use keyboard shortcuts to navigate faster</p>
           </div>
 
-          <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div className="card lf-card-welcome">
             <div className="section-header" style={{ marginBottom: '14px' }}>
               <div className="section-title">Lead Finder</div>
-              <span className="section-tag">powered by Google Places</span>
+              <span className="lf-powered">Powered by Google Places</span>
             </div>
             <div className="form-grid">
               <div>
