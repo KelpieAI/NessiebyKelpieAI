@@ -7,6 +7,7 @@ import { Toast } from './Toast';
 import { useToast } from '../../hooks/useToast';
 import { useBatches } from '../../hooks/useBatches';
 import { NessieStatusBar } from '../NessieStatusBar';
+import { useTheme } from '../../hooks/useTheme';
 import '../../styles/nessie.css';
 
 export const AppShell = () => {
@@ -14,6 +15,9 @@ export const AppShell = () => {
   const location = useLocation();
   const { toasts, showToast, removeToast } = useToast();
   const { batches, deleteBatch, refreshBatches } = useBatches();
+
+  // Initialise theme — reads from localStorage and applies data-theme to <html>
+  useTheme();
 
   const getActiveView = () => {
     if (location.pathname.startsWith('/settings')) return 'Settings';
@@ -27,11 +31,6 @@ export const AppShell = () => {
 
   return (
     <div>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap"
-        rel="stylesheet"
-      />
-
       <TopBar
         activeView={getActiveView()}
         onViewChange={handleViewChange}
@@ -57,11 +56,9 @@ export const AppShell = () => {
         />
 
         <main className="main">
-          {/* This is where each page renders — only this bit swaps */}
           <Outlet />
         </main>
 
-        {/* Right sidebar fixed on the right */}
         <RightSidebar onLeadClick={() => navigate('/queue')} />
       </div>
 
