@@ -14,37 +14,26 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  
+
   const views = ['Queue', 'Analytics', 'Settings'];
 
-  // Handle view change with navigation for Settings
   const handleViewChange = (view: string) => {
     if (view === 'Settings') {
       navigate('/settings');
-    } else if (view === 'Queue' || view === 'Analytics') {
-      // Navigate back to queue with the view
-      navigate('/queue');
-      onViewChange(view);
     } else {
+      navigate('/queue');
       onViewChange(view);
     }
   };
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
     };
-
-    if (showUserMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    if (showUserMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showUserMenu]);
 
   const handleSignOut = async () => {
@@ -52,12 +41,25 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
     window.location.href = '/login';
   };
 
+  // Get initials from full name
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <div className="topbar">
+      {/* Left — logo */}
       <div className="topbar-left">
         <div className="brand">Nessie</div>
         <div className="nessie-pill">Kelpie AI Outreach Console</div>
       </div>
+
+      {/* Centre — nav links */}
       <div className="topbar-nav">
         {views.map((view) => (
           <span
@@ -68,241 +70,73 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
             {view}
           </span>
         ))}
-        <button
-          onClick={onCreateNewBatch}
-          style={{
-            background: 'var(--accent)',
-            color: '#021014',
-            border: 'none',
-            borderRadius: '999px',
-            padding: '6px 14px',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            transition: 'all 0.2s ease',
-            marginLeft: '8px'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(17, 194, 210, 0.3)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = 'none';
-          }}
-          title="Create new batch"
-        >
-          <span style={{ fontSize: '14px' }}>+</span> New Batch
+
+        {/* New Batch button */}
+        <button className="topbar-new-batch" onClick={onCreateNewBatch}>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M5.5 1v9M1 5.5h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          New Batch
         </button>
-        
-        {/* User Dropdown Menu */}
-        <div style={{ position: 'relative', marginLeft: '16px' }} ref={menuRef}>
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
+      </div>
+
+      {/* Right — user pill */}
+      <div style={{ padding: '0 16px', display: 'flex', alignItems: 'center' }} ref={menuRef}>
+        <button
+          className="topbar-user-pill"
+          onClick={() => setShowUserMenu(!showUserMenu)}
+        >
+          <div className="topbar-avatar">
+            {profile?.full_name ? getInitials(profile.full_name) : 'U'}
+          </div>
+          <div className="topbar-user-info">
+            <span className="topbar-user-name">{profile?.full_name || 'User'}</span>
+            {isAdmin && <span className="topbar-user-role">Admin</span>}
+          </div>
+          <ChevronDown
+            size={13}
             style={{
-              background: 'transparent',
-              border: '1px solid rgba(148, 163, 184, 0.2)',
-              borderRadius: '8px',
-              padding: '6px 12px',
-              fontSize: '13px',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              transition: 'all 0.2s',
-              fontFamily: "'Space Grotesk', sans-serif",
+              color: 'var(--text3)',
+              transition: 'transform 0.2s',
+              transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+              marginLeft: '2px',
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-              e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.4)';
-            }}
-            onMouseLeave={(e) => {
-              if (!showUserMenu) {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-              }
-            }}
-          >
-            <span>
-              {profile?.full_name || 'User'}
-              {isAdmin && (
-                <span style={{
-                  marginLeft: '6px',
-                  fontSize: '10px',
-                  color: 'var(--accent)',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                }}>
-                  (admin)
-                </span>
-              )}
-            </span>
-            <ChevronDown 
-              size={14} 
-              style={{
-                transition: 'transform 0.2s',
-                transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)',
-              }}
-            />
-          </button>
+          />
+        </button>
 
-          {/* Dropdown Menu */}
-          {showUserMenu && (
-            <div style={{
-              position: 'absolute',
-              top: 'calc(100% + 8px)',
-              right: 0,
-              background: '#1a2634',
-              border: '1px solid #2d3748',
-              borderRadius: '8px',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
-              minWidth: '200px',
-              zIndex: 1000,
-              overflow: 'hidden',
-            }}>
-              {/* User Info Section */}
-              <div style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid #2d3748',
-              }}>
-                <div style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#e2e8f0',
-                  marginBottom: '4px',
-                }}>
-                  {profile?.full_name}
-                </div>
-                <div style={{
-                  fontSize: '12px',
-                  color: '#94a3b8',
-                }}>
-                  {profile?.email}
-                </div>
-                {isAdmin && (
-                  <div style={{
-                    marginTop: '8px',
-                    display: 'inline-block',
-                    background: 'rgba(20, 184, 166, 0.1)',
-                    color: 'var(--accent)',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    border: '1px solid rgba(20, 184, 166, 0.3)',
-                  }}>
-                    Admin
-                  </div>
-                )}
-              </div>
-
-              {/* Menu Items */}
-              <div style={{ padding: '8px 0' }}>
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    navigate('/settings');
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#e2e8f0',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    textAlign: 'left',
-                    transition: 'background 0.2s',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <User size={16} />
-                  Profile
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    navigate('/settings');
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#e2e8f0',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    textAlign: 'left',
-                    transition: 'background 0.2s',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <Settings size={16} />
-                  Settings
-                </button>
-              </div>
-
-              {/* Sign Out Section */}
-              <div style={{
-                padding: '8px 0',
-                borderTop: '1px solid #2d3748',
-              }}>
-                <button
-                  onClick={handleSignOut}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#ef4444',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    textAlign: 'left',
-                    transition: 'background 0.2s',
-                    fontFamily: "'Space Grotesk', sans-serif",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <LogOut size={16} />
-                  Sign Out
-                </button>
-              </div>
+        {/* Dropdown */}
+        {showUserMenu && (
+          <div className="topbar-dropdown">
+            {/* User info header */}
+            <div className="topbar-dropdown-header">
+              <div className="tdd-name">{profile?.full_name}</div>
+              <div className="tdd-email">{profile?.email}</div>
+              {isAdmin && <span className="tdd-badge">Admin</span>}
             </div>
-          )}
-        </div>
+
+            {/* Menu items */}
+            <div className="topbar-dropdown-items">
+              <button
+                className="tdd-item"
+                onClick={() => { setShowUserMenu(false); navigate('/settings'); }}
+              >
+                <User size={14} /> Profile
+              </button>
+              <button
+                className="tdd-item"
+                onClick={() => { setShowUserMenu(false); navigate('/settings'); }}
+              >
+                <Settings size={14} /> Settings
+              </button>
+            </div>
+
+            <div className="topbar-dropdown-footer">
+              <button className="tdd-item danger" onClick={handleSignOut}>
+                <LogOut size={14} /> Sign Out
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
