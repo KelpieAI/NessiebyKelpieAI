@@ -391,3 +391,306 @@ h1, h2, h3 { font-family: var(--font-head); }
 .confirm-dialog h3 { font-family:var(--font-head);font-size:16px;font-weight:800;color:var(--text);margin-bottom:10px }
 .confirm-dialog p { font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px;white-space:pre-line }
 .confirm-dialog .button-row { justify-content:flex-end;margin-top:0 }
+
+/* ════════════════════════════════════════════════════════════
+   TOPBAR EXTRAS
+   New classes for the rewritten TopBar component
+   ════════════════════════════════════════════════════════════ */
+
+.topbar-new-batch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  background: var(--teal);
+  color: #001A16;
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+.topbar-new-batch:hover {
+  background: var(--teal-bright);
+  box-shadow: 0 0 20px var(--teal-glow);
+  transform: translateY(-1px);
+}
+
+.topbar-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--border2);
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--bg2);
+  font-family: var(--font-body);
+}
+.topbar-user-pill:hover { border-color: var(--teal-border); background: var(--surface); }
+
+.topbar-avatar {
+  width: 28px; height: 28px;
+  background: linear-gradient(135deg, #0ABFA3, #06756A);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-head);
+  font-size: 10px; font-weight: 800;
+  color: #001A16;
+  flex-shrink: 0;
+}
+
+.topbar-user-info { display: flex; flex-direction: column; line-height: 1.2; }
+.topbar-user-name { font-size: 12.5px; font-weight: 500; color: var(--text); }
+.topbar-user-role {
+  font-size: 9.5px; font-weight: 700;
+  color: var(--teal);
+  font-family: var(--font-head);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* Dropdown */
+.topbar-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  min-width: 210px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.topbar-dropdown-header {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.tdd-name { font-size: 13.5px; font-weight: 600; color: var(--text); font-family: var(--font-head); margin-bottom: 3px; }
+.tdd-email { font-size: 11.5px; color: var(--text3); margin-bottom: 6px; }
+.tdd-badge {
+  display: inline-block;
+  background: var(--teal-subtle);
+  color: var(--teal);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px; font-weight: 700;
+  font-family: var(--font-head);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--teal-border);
+}
+
+.topbar-dropdown-items { padding: 6px 0; }
+.topbar-dropdown-footer { padding: 6px 0; border-top: 1px solid var(--border); }
+
+.tdd-item {
+  width: 100%;
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  transition: background 0.12s;
+}
+.tdd-item:hover { background: var(--surface); }
+.tdd-item.danger { color: var(--danger); font-weight: 500; }
+.tdd-item.danger:hover { background: rgba(255,79,96,0.08); }
+
+/* ════════════════════════════════════════════════════════════
+   BATCH CARD EXTRAS
+   New classes for the rewritten BatchCard component
+   ════════════════════════════════════════════════════════════ */
+
+.batch-card-wrapper { margin-bottom: 3px; }
+
+/* Override the old batch-card styles with our new approach */
+.batch-card {
+  padding: 11px 12px !important;
+  border-radius: var(--r-md) !important;
+  margin-bottom: 0 !important;
+}
+
+.batch-card.selected {
+  background: var(--teal-subtle) !important;
+  border-color: var(--teal-border) !important;
+}
+
+/* Top row */
+.bc-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.bc-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.bc-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* Checkbox */
+.batch-checkbox {
+  width: 15px; height: 15px;
+  margin-top: 2px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border2);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.14s;
+  display: flex; align-items: center; justify-content: center;
+}
+.batch-card.selected .batch-checkbox,
+.batch-checkbox:hover {
+  border-color: var(--teal);
+  background: var(--teal);
+}
+
+/* Name group */
+.bc-name-group { flex: 1; min-width: 0; }
+.bc-name {
+  font-size: 13px; font-weight: 500;
+  color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 3px;
+  letter-spacing: -0.01em;
+}
+.batch-card.active .bc-name { color: var(--teal); }
+
+.bc-lf-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(74,158,255,0.1);
+  color: var(--blue);
+  font-size: 10px; font-weight: 600;
+  font-family: var(--font-head);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* Status pill */
+.bc-status {
+  font-family: var(--font-head);
+  font-size: 9.5px; font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Expand button */
+.bc-expand {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text3) !important;
+  cursor: pointer;
+  padding: 3px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  transition: all 0.14s;
+}
+.bc-expand:hover { background: var(--surface) !important; color: var(--text) !important; }
+
+/* Meta line */
+.bc-meta {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Footer section (shown for all statuses) */
+.bc-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* Processing */
+.bc-processing-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 7px;
+}
+.bc-spinner {
+  width: 11px; height: 11px;
+  border: 2px solid rgba(245,166,35,0.2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+.bc-processing-label { font-size: 11.5px; color: var(--amber); font-weight: 500; margin-bottom: 2px; }
+.bc-processing-sub   { font-size: 10.5px; color: var(--text3); }
+
+.bc-stop-btn {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: rgba(255,79,96,0.08);
+  border: 1px solid rgba(255,79,96,0.2);
+  color: var(--danger);
+  font-size: 11px; font-weight: 600;
+  font-family: var(--font-head);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all 0.14s;
+  letter-spacing: 0.02em;
+}
+.bc-stop-btn:hover { background: rgba(255,79,96,0.14); border-color: rgba(255,79,96,0.35); }
+
+/* Partial */
+.bc-partial-label { font-size: 11.5px; color: var(--amber); font-weight: 500; margin-bottom: 4px; }
+
+/* Complete */
+.bc-complete-msg { font-size: 11.5px; color: var(--teal); font-weight: 500; margin-bottom: 4px; animation: slideDown 0.3s ease; }
+.bc-complete-sub { font-size: 10.5px; color: var(--text3); }
+
+.bc-failed-alert {
+  margin-top: 6px;
+  padding: 6px 9px;
+  border-radius: var(--r-sm);
+  background: rgba(245,166,35,0.07);
+  border: 1px solid rgba(245,166,35,0.18);
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--amber); font-weight: 500;
+  transition: background 0.14s;
+}
+.bc-failed-alert:hover { background: rgba(245,166,35,0.12); }
+
+/* Expanded leads list */
+.bc-leads-list {
+  padding-left: 14px;
+  padding-bottom: 4px;
+  margin-top: 2px;
+}
