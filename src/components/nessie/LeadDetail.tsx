@@ -11,6 +11,21 @@ import {
 import { EmailComposer } from '../EmailComposer';
 import { EmailStats } from './EmailStats';
 
+// Lead Finder leads store emails as objects {email, confidence, ...}
+// Scraper leads store emails as plain strings.
+// This helper normalises either format into a plain string.
+const extractEmail = (raw: unknown): string => {
+  if (!raw) return '';
+  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'object' && raw !== null && 'email' in raw) return (raw as any).email || '';
+  return '';
+};
+
+const getEmails = (lead: SuccessfulScrape): string[] => {
+  if (!Array.isArray(lead.emails) || lead.emails.length === 0) return [];
+  return lead.emails.map(extractEmail).filter(Boolean);
+};
+
 interface SearchResult {
   name: string;
   address: string;
@@ -339,9 +354,12 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
           <div>
             <div className="label">Email</div>
             <div className="ld-email-row">
-              {Array.isArray(lead.emails) && lead.emails.length > 0 ? (
-                <><span className="ld-value">{lead.emails[0]}</span><button className="ld-copy-btn" onClick={() => copy(lead.emails![0], 'Email')}><Copy size={13} color="var(--teal)" /></button></>
-              ) : <span className="ld-meta">No email</span>}
+              {(() => {
+                const emails = getEmails(lead);
+                return emails.length > 0
+                  ? <><span className="ld-value">{emails[0]}</span><button className="ld-copy-btn" onClick={() => copy(emails[0], 'Email')}><Copy size={13} color="var(--teal)" /></button></>
+                  : <span className="ld-meta">No email</span>;
+              })()}
             </div>
           </div>
           <div>
@@ -388,7 +406,7 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
             )}
           </div>
 
-          {(!lead.emails || lead.emails.length === 0) && (
+          {getEmails(lead).length === 0 && (
             <button className="ld-coming-soon-btn" disabled title="Coming Soon — Email finder integration">
               <Mail size={13} /> Find Email (Coming Soon)
             </button>
@@ -466,7 +484,7 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
       {/* ── EMAIL COMPOSER MODAL ── */}
       {showEmailComposer && (
         <EmailComposer
-          lead={{ id: lead.id, company_name: lead.company || lead.domain || lead.website || 'Unknown', full_name: (lead as any).full_name || '', email: Array.isArray(lead.emails) && lead.emails.length > 0 ? lead.emails[0] : '', industry: lead.industry }}
+          lead={{ id: lead.id, company_name: lead.company || lead.domain || lead.website || 'Unknown', full_name: (lead as any).full_name || '', email: getEmails(lead)[0] ?? '', industry: lead.industry }}
           onClose={() => setShowEmailComposer(false)}
           onSent={async () => { await handleStatusChange('contacted'); onToast('Email sent successfully!'); setShowEmailComposer(false); }}
         />
