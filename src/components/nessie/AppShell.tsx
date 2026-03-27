@@ -1,11 +1,7 @@
-import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { TopBar } from './TopBar';
-import { Sidebar } from './Sidebar';
-import { RightSidebar } from './RightSidebar';
 import { Toast } from './Toast';
 import { useToast } from '../../hooks/useToast';
-import { useBatches } from '../../hooks/useBatches';
 import { NessieStatusBar } from '../NessieStatusBar';
 import { useTheme } from '../../hooks/useTheme';
 import '../../styles/nessie.css';
@@ -14,9 +10,8 @@ export const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toasts, showToast, removeToast } = useToast();
-  const { batches, deleteBatch, refreshBatches } = useBatches();
 
-  // Initialise theme — reads from localStorage and applies data-theme to <html>
+  // Initialise theme — reads from localStorage, stamps data-theme on <html>
   useTheme();
 
   const getActiveView = () => {
@@ -30,36 +25,19 @@ export const AppShell = () => {
   };
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <TopBar
         activeView={getActiveView()}
         onViewChange={handleViewChange}
         onCreateNewBatch={() => navigate('/queue/new')}
       />
 
-      <div className="layout">
-        <Sidebar
-          batches={batches}
-          leadsByBatch={{}}
-          activeBatchId={null}
-          activeLeadId={null}
-          onBatchClick={() => navigate('/queue')}
-          onLeadClick={() => navigate('/queue')}
-          onToast={showToast}
-          onCreateNewBatch={() => navigate('/queue/new')}
-          onRefreshBatches={refreshBatches}
-          onDeleteBatch={async (id) => {
-            await deleteBatch(id || '');
-            await refreshBatches();
-          }}
-          onOpenFailedTab={() => navigate('/queue')}
-        />
-
-        <main className="main">
-          <Outlet />
-        </main>
-
-        <RightSidebar onLeadClick={() => navigate('/queue')} />
+      {/*
+        NessieQueue and SettingsPage now own their own Sidebar + RightSidebar.
+        AppShell is purely a frame — topbar, outlet, toasts, statusbar.
+      */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Outlet />
       </div>
 
       {toasts.map((toast) => (
