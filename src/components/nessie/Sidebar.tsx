@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import type { Batch } from '../../hooks/useBatches';
 import type { SuccessfulScrape } from '../../types/nessie';
 import { BatchCard } from './BatchCard';
@@ -34,6 +34,40 @@ export const Sidebar = ({
   onOpenFailedTab, // NEW: Destructure the new prop
 }: SidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(268);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(268);
+
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 480;
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    if (isCollapsed) return;
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = sidebarWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const delta = e.clientX - dragStartX.current;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      isDragging.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [isCollapsed, sidebarWidth]);
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -266,7 +300,18 @@ export const Sidebar = ({
   }, [batches, leadsByBatch, searchQuery]);
 
   return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+    <aside
+      className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}
+      style={{ width: isCollapsed ? 'var(--sidebar-width-collapsed)' : `${sidebarWidth}px` }}
+    >
+      {/* Drag handle — only visible when expanded */}
+      {!isCollapsed && (
+        <div
+          className="sidebar-drag-handle"
+          onMouseDown={handleDragStart}
+          title="Drag to resize"
+        />
+      )}
       {!isCollapsed && (
         <>
           <div className="sidebar-header">
