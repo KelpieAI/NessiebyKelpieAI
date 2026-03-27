@@ -14,6 +14,8 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { supabase } from '../lib/supabase';
 import type { SuccessfulScrape } from '../hooks/useLeads';
 import { Search, Mail, Phone, Globe, X, RefreshCw } from 'lucide-react';
+import { Sidebar } from '../components/nessie/Sidebar';
+import { RightSidebar } from '../components/nessie/RightSidebar';
 import '../styles/nessie.css';
 
 interface LeadTab {
@@ -1130,10 +1132,47 @@ export const NessieQueue = () => {
   };
 
   return (
-    <>
-      {renderMainContent()}
+    <div className="layout">
+      <Sidebar
+        batches={batches}
+        leadsByBatch={leadsByBatch}
+        activeBatchId={activeBatchId}
+        activeLeadId={activeLeadId}
+        onBatchClick={handleBatchClick}
+        onLeadClick={handleLeadClick}
+        onToast={showToast}
+        onCreateNewBatch={() => navigate('/queue/new')}
+        onRefreshBatches={refreshBatches}
+        onDeleteBatch={async (id) => {
+          await handleDeleteBatch(id);
+        }}
+        onOpenFailedTab={(batchId) => {
+          setActiveBatchId(batchId);
+          setActiveTab('failed');
+          setMainView('leads-table');
+        }}
+      />
 
-      {renderDuplicateModal()}
+      <main className="main">
+        {renderMainContent()}
+        {renderDuplicateModal()}
+
+        {hasStaleBatches && activeView === 'Queue' && (
+          <StaleBatchBanner
+            staleBatches={staleBatches}
+            onMarkComplete={handleMarkBatchComplete}
+            onAutoCompleteAll={handleAutoCompleteAll}
+            onDismiss={() => {}}
+          />
+        )}
+      </main>
+
+      <RightSidebar onLeadClick={(leadId) => {
+        const batchId = Object.keys(leadsByBatch).find(bid =>
+          leadsByBatch[bid].some(l => l.id === leadId)
+        );
+        if (batchId) handleLeadClick(leadId, batchId);
+      }} />
 
       {toasts.map((toast) => (
         <Toast
@@ -1142,15 +1181,6 @@ export const NessieQueue = () => {
           onClose={() => removeToast(toast.id)}
         />
       ))}
-
-      {hasStaleBatches && activeView === 'Queue' && (
-        <StaleBatchBanner
-          staleBatches={staleBatches}
-          onMarkComplete={handleMarkBatchComplete}
-          onAutoCompleteAll={handleAutoCompleteAll}
-          onDismiss={() => {}}
-        />
-      )}
-    </>
+    </div>
   );
 };
