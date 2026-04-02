@@ -34,10 +34,10 @@ export const Sidebar = ({
   onOpenFailedTab, // NEW: Destructure the new prop
 }: SidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(268);
+  const [sidebarWidth, setSidebarWidth] = useState(480);
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
-  const dragStartWidth = useRef(268);
+  const dragStartWidth = useRef(480);
 
   const MIN_WIDTH = 200;
   const MAX_WIDTH = 480;
