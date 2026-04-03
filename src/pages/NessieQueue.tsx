@@ -556,29 +556,22 @@ export const NessieQueue = () => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
-          {topEmail ? (
-            <>
-              <span style={{ fontSize: '13px', color: 'var(--accent)', fontWeight: 500 }}>
-                {topEmail.email}
-              </span>
-              {topEmail.confidence != null && (
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '11px',
-                  color: 'var(--accent)',
-                  background: accentBg,
-                  border: '1px solid rgba(17,194,210,0.3)',
-                  borderRadius: '999px',
-                  padding: '2px 8px',
-                  fontWeight: 500,
-                }}>
-                  <Mail size={9} />
-                  {topEmail.confidence}% confidence
-                </span>
-              )}
-            </>
+          {hasEmail ? (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--accent)',
+              background: 'rgba(17,194,210,0.1)',
+              border: '1px solid rgba(17,194,210,0.3)',
+              borderRadius: '999px',
+              padding: '3px 10px',
+            }}>
+              <Mail size={11} />
+              {lead.emails.length} email{lead.emails.length !== 1 ? 's' : ''} found
+            </span>
           ) : (
             <span style={{
               display: 'inline-flex',
@@ -592,7 +585,8 @@ export const NessieQueue = () => {
               padding: '3px 10px',
               fontWeight: 500,
             }}>
-              ⚠ No email yet
+              <Mail size={11} />
+              No emails yet
             </span>
           )}
           <button
