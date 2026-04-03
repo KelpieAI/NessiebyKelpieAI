@@ -13,7 +13,7 @@ import { useBatchTimeout } from '../hooks/useBatchTimeout';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { supabase } from '../lib/supabase';
 import type { SuccessfulScrape } from '../hooks/useLeads';
-import { Search, Mail, Phone, Globe, X, RefreshCw } from 'lucide-react';
+import { Search, Mail, Phone, Globe, X, RefreshCw, ExternalLink, MapPin } from 'lucide-react';
 import { Sidebar } from '../components/nessie/Sidebar';
 import { RightSidebar } from '../components/nessie/RightSidebar';
 import '../styles/nessie.css';
@@ -487,26 +487,51 @@ export const NessieQueue = () => {
 
   // ── Render helpers ────────────────────────────────────────────
 
-  const renderLeadCard = (lead: FinderLead) => (
-    <div
-      key={lead.id}
-      className="card"
-      style={{ padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.2s' }}
-      onClick={() => handleFinderLeadClick(lead)}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'rgba(17,194,210,0.4)'}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px' }}>
+  const renderLeadCard = (lead: FinderLead) => {
+    const hasEmail = lead.emails && lead.emails.length > 0;
+    const topEmail = hasEmail ? lead.emails[0] : null;
+    const accentColor = hasEmail ? 'var(--accent)' : '#f6ad55';
+    const accentBg = hasEmail ? 'rgba(17,194,210,0.15)' : 'rgba(246,173,85,0.15)';
+
+    return (
+      <div
+        key={lead.id}
+        style={{
+          background: 'var(--bg-elevated)',
+          border: '1px solid var(--border)',
+          borderLeft: `3px solid ${accentColor}`,
+          borderRadius: '10px',
+          padding: '18px 20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: '20px',
+          transition: 'border-color 0.2s, background 0.2s',
+          cursor: 'default',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+          e.currentTarget.style.borderColor = `${accentColor}`;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'var(--bg-elevated)';
+          e.currentTarget.style.borderColor = 'var(--border)';
+          e.currentTarget.style.borderLeftColor = accentColor;
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-primary)' }}>
             {lead.company}
           </div>
-          <div className="label" style={{ marginBottom: '8px', textTransform: 'none', letterSpacing: 0 }}>
-            📍 {lead.location}
-          </div>
+          {lead.location && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              <MapPin size={11} style={{ flexShrink: 0 }} />
+              {lead.location}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
-            {lead.website && ( <a
-              
+            {lead.website && (
+              <a
                 href={lead.website}
                 target="_blank"
                 rel="noreferrer"
@@ -522,47 +547,66 @@ export const NessieQueue = () => {
                 <Phone size={11} /> {lead.phone}
               </span>
             )}
-            {lead.industry && (
-              <span className="lead-industry-pill">{lead.industry}</span>
-            )}
           </div>
-        </div>
-
-        <div style={{ minWidth: '240px' }}>
-          {lead.emails && lead.emails.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {lead.emails.map((e, i) => (
-                <div key={i} style={{
-                  background: 'rgba(17, 194, 210, 0.06)',
-                  border: '1px solid rgba(17, 194, 210, 0.18)',
-                  borderRadius: '8px',
-                  padding: '6px 10px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Mail size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                    <span style={{ fontSize: '12px', color: 'var(--accent)' }}>{e.email}</span>
-                    <span className="label" style={{ marginLeft: 'auto', fontSize: '10px' }}>
-                      {e.confidence}%
-                    </span>
-                  </div>
-                  {(e.first_name || e.position) && (
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: '17px' }}>
-                      {[e.first_name, e.last_name].filter(Boolean).join(' ')}
-                      {e.position && ` — ${e.position}`}
-                    </div>
-                  )}
-                </div>
-              ))}
+          {lead.industry && (
+            <div style={{ marginTop: '10px' }}>
+              <span className="lead-industry-pill">{lead.industry}</span>
             </div>
-          ) : (
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              — no email yet
-            </span>
           )}
         </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+          {topEmail ? (
+            <>
+              <span style={{ fontSize: '13px', color: 'var(--accent)', fontWeight: 500 }}>
+                {topEmail.email}
+              </span>
+              {topEmail.confidence != null && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '11px',
+                  color: 'var(--accent)',
+                  background: accentBg,
+                  border: '1px solid rgba(17,194,210,0.3)',
+                  borderRadius: '999px',
+                  padding: '2px 8px',
+                  fontWeight: 500,
+                }}>
+                  <Mail size={9} />
+                  {topEmail.confidence}% confidence
+                </span>
+              )}
+            </>
+          ) : (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontSize: '11px',
+              color: '#f6ad55',
+              background: 'rgba(246,173,85,0.1)',
+              border: '1px solid rgba(246,173,85,0.3)',
+              borderRadius: '999px',
+              padding: '3px 10px',
+              fontWeight: 500,
+            }}>
+              ⚠ No email yet
+            </span>
+          )}
+          <button
+            className="btn secondary"
+            style={{ fontSize: '11px', padding: '5px 12px', marginTop: '2px' }}
+            onClick={() => handleFinderLeadClick(lead)}
+          >
+            <ExternalLink size={11} />
+            Open Lead
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderDuplicateCard = (dup: DuplicateLead) => (
     <div
@@ -984,9 +1028,38 @@ export const NessieQueue = () => {
             {/* New leads */}
             {finderLeads.length > 0 && (
               <div className="section">
-                <div className="section-header">
-                  <div className="section-title">Results</div>
-                  <span className="batch-pill">{finderLeads.length} new leads</span>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '14px',
+                  paddingBottom: '12px',
+                  borderBottom: '1px solid var(--border)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Results</span>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: 'rgb(34,197,94)',
+                      background: 'rgba(34,197,94,0.1)',
+                      border: '1px solid rgba(34,197,94,0.3)',
+                      borderRadius: '999px',
+                      padding: '2px 8px',
+                    }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'rgb(34,197,94)', flexShrink: 0 }} />
+                      {finderLeads.length} NEW LEAD{finderLeads.length !== 1 ? 'S' : ''}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {finderLeads.filter(l => l.emails && l.emails.length > 0).length} emails found
+                    {finderBatchId && !finderEnrichSummary && ' · Click "Find Emails" to enrich'}
+                  </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {finderLeads.map(renderLeadCard)}
