@@ -7,31 +7,48 @@ import { supabase } from '../../lib/supabase';
 import {
   ChevronLeft, ChevronRight, ExternalLink, Copy, Trash2,
   Check, Download, Mail, Tag as TagIcon, X, Send, Globe, Phone,
+  MapPin, Sparkles, Zap, PlusCircle,
 } from 'lucide-react';
 import { EmailComposer } from '../EmailComposer';
 import { EmailStats } from './EmailStats';
 
-// Lead Finder leads store emails as objects {email, confidence, ...}
-// Scraper leads store emails as plain strings.
-// This helper normalises either format into a plain string.
-const extractEmail = (raw: unknown): string => {
-  if (!raw) return '';
-  if (typeof raw === 'string') return raw;
-  if (typeof raw === 'object' && raw !== null && 'email' in raw) return (raw as any).email || '';
-  return '';
+interface EmailObj {
+  email: string;
+  confidence: number;
+  first_name?: string;
+  last_name?: string;
+  position?: string;
+}
+
+const extractEmailObj = (raw: unknown): EmailObj | null => {
+  if (!raw) return null;
+  if (typeof raw === 'string') return { email: raw, confidence: 0 };
+  if (typeof raw === 'object' && raw !== null && 'email' in raw) {
+    const r = raw as any;
+    return { email: r.email || '', confidence: r.confidence ?? 0, first_name: r.first_name, last_name: r.last_name, position: r.position };
+  }
+  return null;
 };
 
-const getEmails = (lead: SuccessfulScrape): string[] => {
+const getEmailObjs = (lead: SuccessfulScrape): EmailObj[] => {
   if (!Array.isArray(lead.emails) || lead.emails.length === 0) return [];
-  return lead.emails.map(extractEmail).filter(Boolean);
+  return lead.emails.map(extractEmailObj).filter((e): e is EmailObj => !!e && !!e.email);
+};
+
+const getConfidenceColor = (conf: number) => {
+  if (conf >= 80) return { color: '#0ABFA3', bg: 'rgba(10,191,163,0.12)', border: 'rgba(10,191,163,0.3)' };
+  if (conf >= 50) return { color: '#F5A623', bg: 'rgba(245,166,35,0.1)', border: 'rgba(245,166,35,0.3)' };
+  return { color: '#FF4F60', bg: 'rgba(255,79,96,0.1)', border: 'rgba(255,79,96,0.25)' };
+};
+
+const getConfidenceLabel = (conf: number) => {
+  if (conf >= 80) return 'High';
+  if (conf >= 50) return 'Medium';
+  return 'Low';
 };
 
 interface SearchResult {
-  name: string;
-  address: string;
-  website: string;
-  phone: string;
-  industry: string;
+  name: string; address: string; website: string; phone: string; industry: string;
   emails?: Array<{ email: string; confidence: number; first_name?: string; last_name?: string; position?: string }>;
 }
 
@@ -56,7 +73,6 @@ interface LeadDetailProps {
   onNavigate?: (direction: 'prev' | 'next') => void;
 }
 
-// Status config — maps LeadStatus to CSS variable colours
 const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
   new:       { color: 'var(--text3)',   bg: 'var(--surface)' },
   contacted: { color: 'var(--blue)',    bg: 'rgba(74,158,255,0.1)' },
@@ -66,21 +82,19 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
 };
 const getStatusCfg = (s: string) => STATUS_CONFIG[s] ?? STATUS_CONFIG.new;
 
-// Dynamic greeting (time + day aware)
 const getGreeting = (name = 'User') => {
   const h = new Date().getHours();
   const d = new Date().getDay();
   const rnd = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
   if (d === 0 || d === 6) return rnd([`Weekend warrior, ${name}?`, `Working on a ${d === 0 ? 'Sunday' : 'Saturday'}? Legend, ${name}!`]);
   if (d === 1) return rnd([`Monday blues? Not with these leads, ${name}!`, `Let's make this Monday count, ${name}!`]);
-  if (d === 5) return rnd([`TGIF, ${name}! Let's close some deals!`, `Friday energy, ${name}! 🔥`]);
+  if (d === 5) return rnd([`TGIF, ${name}! Let's close some deals!`, `Friday energy, ${name}!`]);
   if (h >= 5 && h < 12) return rnd([`Good morning, ${name}!`, `Morning ${name}, let's crush it!`, `Morning ${name}! Ready to hunt?`]);
   if (h >= 12 && h < 17) return rnd([`Hey ${name}, ready to dive in?`, `Alright ${name}, let's hunt!`]);
   if (h >= 17 && h < 21) return rnd([`Good evening, ${name}!`, `Evening ${name}! One last push?`]);
-  return rnd([`Still hunting, ${name}?`, `Burning the midnight oil, ${name}? 🌙`]);
+  return rnd([`Still hunting, ${name}?`, `Burning the midnight oil, ${name}?`]);
 };
 
-// ─── LeadFinderWelcome ─────────────────────────────────────────────────────────
 const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greeting: string }) => {
   const [query, setQuery] = useState('');
   const [location, setLocation] = useState('');
@@ -136,8 +150,6 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
 
   return (
     <div className={`lfw-wrap ${hasResults ? 'lfw-wrap--results' : ''}`}>
-
-      {/* Welcome hero — hidden once results load */}
       {!hasResults && (
         <div className="welcome-hero">
           <div className="welcome-eyebrow">Ready to Hunt</div>
@@ -146,8 +158,6 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
           <p className="welcome-protip">Pro tip: Use keyboard shortcuts to navigate faster</p>
         </div>
       )}
-
-      {/* Lead Finder form */}
       <div className={`card ${hasResults ? '' : 'lf-card-welcome'}`}>
         <div className="section-header" style={{ marginBottom: '16px' }}>
           <span className="section-title">Lead Finder</span>
@@ -164,19 +174,13 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
           {hasResults && <span className="batch-pill" style={{ marginLeft: 'auto' }}>{results.length} leads</span>}
         </div>
       </div>
-
-      {/* Error */}
       {error && <div className="ld-error-banner">{error}</div>}
-
-      {/* Enrichment success */}
       {enrichmentResult && (
         <div className="ld-success-banner">
           <Check size={14} />
           Found emails for {enrichmentResult.found} out of {enrichmentResult.total} businesses
         </div>
       )}
-
-      {/* Results */}
       {hasResults && (
         <div className="lfw-results">
           {results.map((r, i) => (
@@ -200,8 +204,6 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
           ))}
         </div>
       )}
-
-      {/* Duplicates */}
       {hasResults && duplicates.length > 0 && (
         <div style={{ marginTop: '32px' }}>
           <div className="section-header" style={{ marginBottom: '16px' }}>
@@ -211,7 +213,7 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
           <div className="lfw-results">
             {duplicates.map((dup, i) => (
               <div key={i} className="card lfw-result-card lfw-dup-card" onClick={() => setSelectedDuplicate(dup)}>
-                <div className="ld-dup-flag">🔄 Duplicate</div>
+                <div className="ld-dup-flag">Duplicate</div>
                 <div className="lfw-result-left">
                   <div className="ld-company-name">{dup.company}</div>
                   {dup.location && <div className="ld-meta-row"><span>📍</span>{dup.location}</div>}
@@ -224,17 +226,15 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
           </div>
         </div>
       )}
-
-      {/* Duplicate detail modal */}
       {selectedDuplicate && (
         <div className="ld-modal-overlay" onClick={() => setSelectedDuplicate(null)}>
           <div className="ld-modal-card" onClick={e => e.stopPropagation()}>
             <button className="ld-modal-close" onClick={() => setSelectedDuplicate(null)}><X size={16} /></button>
             <div className="ld-modal-header">
               <span className="ld-company-name">{selectedDuplicate.company}</span>
-              <span className="ld-dup-badge">🔄 Duplicate</span>
+              <span className="ld-dup-badge">Duplicate</span>
             </div>
-            <div className="ld-modal-section"><div className="label">Already exists in:</div><div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}><span className="ld-value">{selectedDuplicate.existing.batch?.label || 'Unknown batch'}</span><span className="batch-pill">{selectedDuplicate.existing.batch?.channel === 'lead-finder' ? '🔍 Lead Finder' : 'Scraper'}</span><span className="ld-meta">{fmtDate(selectedDuplicate.existing.batch?.created_at || selectedDuplicate.existing.created_at)}</span></div></div>
+            <div className="ld-modal-section"><div className="label">Already exists in:</div><div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}><span className="ld-value">{selectedDuplicate.existing.batch?.label || 'Unknown batch'}</span><span className="batch-pill">{selectedDuplicate.existing.batch?.channel === 'lead-finder' ? 'Lead Finder' : 'Scraper'}</span><span className="ld-meta">{fmtDate(selectedDuplicate.existing.batch?.created_at || selectedDuplicate.existing.created_at)}</span></div></div>
             <div className="ld-modal-section"><div className="label">Current status:</div><span className="bc-status" style={{ color: getStatusCfg(selectedDuplicate.existing.lead_status).color, background: getStatusCfg(selectedDuplicate.existing.lead_status).bg, marginTop: '6px', display: 'inline-block' }}>{selectedDuplicate.existing.lead_status}</span></div>
             <div className="ld-modal-section"><div className="label">Activity:</div><div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '13px' }}>{selectedDuplicate.existing.emails_enriched ? <span style={{ color: 'var(--teal)' }}><Check size={12} style={{ display: 'inline', marginRight: '4px' }} />Emails enriched ({selectedDuplicate.existing.emails_count} found)</span> : <span style={{ color: 'var(--text3)' }}>No emails found yet</span>}<span style={{ color: selectedDuplicate.existing.emails_sent > 0 ? 'var(--teal)' : 'var(--text3)' }}>{selectedDuplicate.existing.emails_sent} outreach emails sent</span><span style={{ color: 'var(--text3)' }}>{selectedDuplicate.existing.contacted_at ? `Last contacted: ${fmtDate(selectedDuplicate.existing.contacted_at)}` : 'Not yet contacted'}</span></div></div>
             {selectedDuplicate.existing.tags?.length > 0 && <div className="ld-modal-section"><div className="label">Tags:</div><div style={{ marginTop: '6px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>{selectedDuplicate.existing.tags.map((t, i) => <span key={i} className="lead-industry-pill">{t}</span>)}</div></div>}
@@ -245,13 +245,11 @@ const LeadFinderWelcome = ({ firstName, greeting }: { firstName: string; greetin
           </div>
         </div>
       )}
-
       {toastMessage && <div className="toast">{toastMessage}</div>}
     </div>
   );
 };
 
-// ─── LeadDetail ────────────────────────────────────────────────────────────────
 export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpdate, onLeadDelete, onNavigate }: LeadDetailProps) => {
   const { profile } = useAuth();
   const [messageSubject, setMessageSubject] = useState('');
@@ -262,13 +260,25 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
   const [isAddingTag, setIsAddingTag] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
 
   const currentIndex = lead ? allLeads.findIndex(l => l.id === lead.id) : -1;
   const firstName = profile?.full_name?.split(' ')[0] || 'User';
   const greeting = useMemo(() => getGreeting(firstName), [firstName]);
 
   useEffect(() => {
-    if (lead) { setMessageSubject(lead.subject || ''); setMessageBody(lead.message || ''); setLeadStatus(lead.lead_status || 'new'); setTags(lead.tags || []); }
+    if (lead) {
+      setMessageSubject(lead.subject || '');
+      setMessageBody(lead.message || '');
+      setLeadStatus(lead.lead_status || 'new');
+      setTags(lead.tags || []);
+      const emailObjs = getEmailObjs(lead);
+      if (emailObjs.length > 0) {
+        setSelectedEmails(new Set([emailObjs[0].email]));
+      } else {
+        setSelectedEmails(new Set());
+      }
+    }
   }, [lead]);
 
   useEffect(() => {
@@ -311,73 +321,30 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
     onToast('Tag removed');
   };
 
+  const toggleEmail = (email: string) => {
+    setSelectedEmails(prev => {
+      const next = new Set(prev);
+      if (next.has(email)) { next.delete(email); } else { next.add(email); }
+      return next;
+    });
+  };
+
+  const emailObjs = getEmailObjs(lead);
   const sc = getStatusCfg(leadStatus);
 
   return (
-    <div className="ld-wrap">
+    <div className="ld-wrap ld-wrap-v2">
 
-      {/* ── BREADCRUMB + NAV ── */}
-      <div className="ld-toprow">
-        <div className="ld-breadcrumb">
-          <span className="ld-company-name">{lead.company || lead.domain || lead.website}</span>
-          <span className="ld-sep">·</span>
-          <span className="batch-pill">{batch.label}</span>
-          <span className="ld-sep">·</span>
-          <span className="bc-status" style={{ color: sc.color, background: sc.bg }}>{leadStatus}</span>
-        </div>
-
-        {allLeads.length > 1 && (
-          <div className="ld-nav">
-            <span className="ld-nav-count">{currentIndex + 1} of {allLeads.length}</span>
-            <div className="ld-nav-btns">
-              <button className="ld-nav-btn" onClick={() => onNavigate?.('prev')} disabled={currentIndex === 0}><ChevronLeft size={15} /></button>
-              <button className="ld-nav-btn" onClick={() => onNavigate?.('next')} disabled={currentIndex === allLeads.length - 1}><ChevronRight size={15} /></button>
-            </div>
+      {/* ── HEADER ── */}
+      <div className="ldv2-header">
+        <div className="ldv2-header-left">
+          <div className="ldv2-breadcrumb">
+            <span className="ldv2-batch-crumb">{batch.label}</span>
+            <ChevronRight size={12} color="var(--text4)" />
+            <span className="ldv2-company-crumb">{lead.company || lead.domain || lead.website}</span>
           </div>
-        )}
-      </div>
-
-      {/* ── LEAD SUMMARY ── */}
-      <div className="ld-section">
-        <div className="ld-section-header">
-          <h2 className="ld-section-title">Lead Summary</h2>
-          <button className="btn" onClick={() => window.open(lead.website, '_blank')}>
-            <ExternalLink size={13} /> Open Site
-          </button>
-        </div>
-
-        <div className="ld-grid">
-          <div>
-            <div className="label">Website</div>
-            <a href={lead.website} target="_blank" rel="noreferrer" className="ld-link">{lead.website}</a>
-          </div>
-          <div>
-            <div className="label">Email</div>
-            <div className="ld-email-row">
-              {(() => {
-                const emails = getEmails(lead);
-                return emails.length > 0
-                  ? <><span className="ld-value">{emails[0]}</span><button className="ld-copy-btn" onClick={() => copy(emails[0], 'Email')}><Copy size={13} color="var(--teal)" /></button></>
-                  : <span className="ld-meta">No email</span>;
-              })()}
-            </div>
-          </div>
-          <div>
-            <div className="label">Industry</div>
-            <span className="pill-inline">{lead.industry || 'business'}</span>
-          </div>
-          <div>
-            <div className="label">Owner</div>
-            <span className="ld-value">Assigned to Nessie user</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── STATUS + TAGS ── */}
-      <div className="ld-section">
-        <div className="ld-controls-row">
-          <div className="ld-status-group">
-            <span className="ld-meta">Status:</span>
+          <h1 className="ldv2-title">{lead.company || lead.domain || lead.website}</h1>
+          <div className="ldv2-header-meta">
             <select className="ld-select" value={leadStatus} onChange={e => handleStatusChange(e.target.value as LeadStatus)}>
               <option value="new">New</option>
               <option value="contacted">Contacted</option>
@@ -385,10 +352,6 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
               <option value="qualified">Qualified</option>
               <option value="dead">Dead</option>
             </select>
-          </div>
-
-          <div className="ld-tags-group">
-            <span className="ld-meta">Tags:</span>
             {tags.map(tag => (
               <div key={tag} className="ld-tag">
                 {tag}
@@ -405,86 +368,256 @@ export const LeadDetail = ({ lead, batch, allLeads, loading, onToast, onLeadUpda
               <button className="ld-add-tag-btn" onClick={() => setIsAddingTag(true)}><TagIcon size={11} />Add Tag</button>
             )}
           </div>
-
-          {getEmails(lead).length === 0 && (
-            <button className="ld-coming-soon-btn" disabled title="Coming Soon — Email finder integration">
-              <Mail size={13} /> Find Email (Coming Soon)
-            </button>
+        </div>
+        <div className="ldv2-header-right">
+          {allLeads.length > 1 && (
+            <div className="ld-nav">
+              <span className="ld-nav-count">{currentIndex + 1} of {allLeads.length}</span>
+              <div className="ld-nav-btns">
+                <button className="ld-nav-btn" onClick={() => onNavigate?.('prev')} disabled={currentIndex === 0}><ChevronLeft size={15} /></button>
+                <button className="ld-nav-btn" onClick={() => onNavigate?.('next')} disabled={currentIndex === allLeads.length - 1}><ChevronRight size={15} /></button>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-
-      {/* ── ICEBREAKER ── */}
-      {lead.icebreaker && (
-        <div className="ld-section">
-          <h2 className="ld-section-title" style={{ marginBottom: '14px' }}>Icebreaker</h2>
-          <div className="ld-content-block">
-            <p className="ld-content-text">{lead.icebreaker}</p>
-          </div>
-        </div>
-      )}
-
-      {/* ── MESSAGE ── */}
-      <div className="ld-section">
-        <div className="ld-section-header">
-          <h2 className="ld-section-title">Message</h2>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn" onClick={() => copy(messageBody, 'Message')}><Copy size={13} />Copy Message</button>
-            {batch.channel === 'email' && <button className="btn" onClick={() => setShowEmailComposer(true)}><Send size={13} />Send Email</button>}
-          </div>
-        </div>
-
-        <div className="ld-content-block">
-          {batch.channel === 'email' && (
-            <div style={{ marginBottom: '16px' }}>
-              <div className="label" style={{ marginBottom: '7px' }}>Subject</div>
-              <input className="input" value={messageSubject} onChange={e => setMessageSubject(e.target.value)} />
-            </div>
-          )}
-          <div>
-            <div className="label" style={{ marginBottom: '7px' }}>Body</div>
-            <textarea className="input" value={messageBody} onChange={e => setMessageBody(e.target.value)} style={{ minHeight: '200px', lineHeight: 1.7, resize: 'vertical' }} />
-            <div className="ld-helper">
-              {lead.message ? 'Generated from your custom template. Edit freely before sending.' : 'Auto-generated message based on lead details. Edit freely before sending.'}
-            </div>
+            <button className="btn secondary" onClick={() => window.open(lead.website, '_blank')}>
+              <ExternalLink size={13} /> Open Site
+            </button>
+            <button
+              className="btn"
+              style={leadStatus === 'contacted' ? { background: 'var(--teal)', color: '#fff' } : {}}
+              onClick={() => handleStatusChange(leadStatus === 'contacted' ? 'new' : 'contacted')}
+            >
+              {leadStatus === 'contacted' ? <><Check size={13} /> Contacted</> : <><Check size={13} /> Mark Contacted</>}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── EMAIL STATS ── */}
-      {batch.channel === 'email' && <EmailStats leadId={lead.id} />}
+      {/* ── TWO-COLUMN BODY ── */}
+      <div className="ldv2-body">
 
-      {/* ── ACTION BUTTONS ── */}
-      <div className="ld-actions">
-        <button
-          className="ld-action-btn"
-          onClick={() => handleStatusChange(leadStatus === 'contacted' ? 'new' : 'contacted')}
-          style={{ color: leadStatus === 'contacted' ? 'var(--teal)' : 'var(--blue)', background: leadStatus === 'contacted' ? 'var(--teal-subtle)' : 'rgba(74,158,255,0.1)', borderColor: leadStatus === 'contacted' ? 'var(--teal-border)' : 'rgba(74,158,255,0.3)' }}
-        >
-          {leadStatus === 'contacted' && <Check size={15} />}
-          {leadStatus === 'contacted' ? 'Marked as Contacted' : 'Mark as Contacted'}
-        </button>
+        {/* ── LEFT COLUMN ── */}
+        <div className="ldv2-left">
 
-        <button className="ld-action-btn ld-action-btn--disabled" disabled title="Coming Soon — Export individual leads"><Download size={15} />Export (Coming Soon)</button>
-        <button className="ld-action-btn ld-action-btn--disabled" disabled title="Coming Soon — Email sequence"><Mail size={15} />Add to Sequence (Coming Soon)</button>
-
-        <div style={{ flex: 1 }} />
-
-        {!showDeleteConfirm ? (
-          <button className="ld-action-btn ld-action-btn--danger" onClick={() => setShowDeleteConfirm(true)}><Trash2 size={15} />Delete Lead</button>
-        ) : (
-          <div className="ld-delete-confirm">
-            <span className="ld-delete-label">Are you sure?</span>
-            <button className="btn" style={{ background: 'var(--danger)', color: '#fff' }} onClick={async () => { await onLeadDelete?.(lead.id); setShowDeleteConfirm(false); onToast('Lead deleted'); }}>Yes, Delete</button>
-            <button className="btn secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+          {/* Contact Details */}
+          <div className="ldv2-card">
+            <div className="ldv2-card-label">CONTACT DETAILS</div>
+            <div className="ldv2-contact-grid">
+              <div>
+                <div className="ldv2-field-label">WEBSITE</div>
+                {lead.website
+                  ? <a href={lead.website} target="_blank" rel="noreferrer" className="ld-link" style={{ fontSize: '13px' }}>{lead.website.replace(/^https?:\/\//, '')}</a>
+                  : <span className="ld-no-email">No website</span>}
+              </div>
+              <div>
+                <div className="ldv2-field-label">EMAIL</div>
+                {emailObjs.length > 0
+                  ? <span style={{ fontSize: '13px', color: 'var(--teal)' }}>{emailObjs.length} email{emailObjs.length !== 1 ? 's' : ''} found</span>
+                  : <span className="ld-no-email">No email found</span>}
+              </div>
+              {lead.phone && (
+                <div>
+                  <div className="ldv2-field-label">PHONE</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Phone size={12} color="var(--text3)" />
+                    <span className="ld-value" style={{ fontSize: '13px' }}>{lead.phone}</span>
+                  </div>
+                </div>
+              )}
+              {lead.location && (
+                <div>
+                  <div className="ldv2-field-label">LOCATION</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={12} color="var(--text3)" />
+                    <span className="ld-value" style={{ fontSize: '13px' }}>{lead.location}</span>
+                  </div>
+                </div>
+              )}
+              {lead.industry && (
+                <div>
+                  <div className="ldv2-field-label">INDUSTRY</div>
+                  <span className="lead-industry-pill">{lead.industry}</span>
+                </div>
+              )}
+              <div>
+                <div className="ldv2-field-label">BATCH</div>
+                <span className="ld-value" style={{ fontSize: '13px' }}>{batch.label}</span>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Icebreaker */}
+          <div className="ldv2-card">
+            <div className="ldv2-card-label">ICEBREAKER</div>
+            {lead.icebreaker ? (
+              <div className="ldv2-icebreaker-filled">
+                <p className="ld-content-text">{lead.icebreaker}</p>
+              </div>
+            ) : (
+              <div className="ldv2-icebreaker-empty">
+                <div className="ldv2-icebreaker-empty-icon">
+                  <Sparkles size={20} color="var(--amber)" />
+                </div>
+                <p className="ldv2-icebreaker-empty-title">No icebreaker yet</p>
+                <p className="ldv2-icebreaker-empty-text">
+                  Hey! I'm Nessie — I can craft a personalised icebreaker for <strong>{lead.company || 'this lead'}</strong> based on what I find on their website. A great icebreaker can seriously boost your reply rates!
+                </p>
+                <div className="ldv2-icebreaker-actions">
+                  <button className="btn" style={{ fontSize: '12px', padding: '7px 14px', gap: '6px' }}>
+                    <Zap size={12} /> Generate Icebreaker
+                  </button>
+                  <button className="btn secondary" style={{ fontSize: '12px', padding: '7px 14px', gap: '6px' }}>
+                    <PlusCircle size={12} /> Add to Queue
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Email History */}
+          <div className="ldv2-card">
+            <div className="ldv2-card-label">EMAIL HISTORY</div>
+            {batch.channel === 'email'
+              ? <EmailStats leadId={lead.id} />
+              : (
+                <div className="ldv2-empty-state">
+                  <Mail size={24} color="var(--text4)" />
+                  <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'var(--text3)' }}>No emails sent yet</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text4)' }}>Use "Send Email" to send your first outreach</p>
+                </div>
+              )}
+          </div>
+
+          {/* Actions */}
+          <div className="ldv2-card">
+            <div className="ldv2-card-label">ACTIONS</div>
+            <div className="ldv2-actions-list">
+              <button className="ldv2-action-row ldv2-action-disabled" disabled>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Mail size={14} /><span>Find Email</span>
+                </div>
+                <span className="ldv2-coming-soon">COMING SOON</span>
+              </button>
+              <button className="ldv2-action-row ldv2-action-disabled" disabled>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Download size={14} /><span>Export Lead</span>
+                </div>
+                <span className="ldv2-coming-soon">COMING SOON</span>
+              </button>
+              {!showDeleteConfirm ? (
+                <button className="ldv2-action-row ldv2-action-danger" onClick={() => setShowDeleteConfirm(true)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Trash2 size={14} /><span>Delete Lead</span>
+                  </div>
+                </button>
+              ) : (
+                <div className="ld-delete-confirm" style={{ padding: '10px 0' }}>
+                  <span className="ld-delete-label">Are you sure?</span>
+                  <button className="btn" style={{ background: 'var(--danger)', color: '#fff', fontSize: '12px' }} onClick={async () => { await onLeadDelete?.(lead.id); setShowDeleteConfirm(false); onToast('Lead deleted'); }}>Yes, Delete</button>
+                  <button className="btn secondary" style={{ fontSize: '12px' }} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── RIGHT COLUMN ── */}
+        <div className="ldv2-right">
+          <div className="ldv2-card ldv2-message-card">
+            <div className="ldv2-card-label">MESSAGE</div>
+
+            {/* Email selection — only shown if multiple emails */}
+            {emailObjs.length > 0 && (
+              <div className="ldv2-email-select-section">
+                <div className="ldv2-field-label" style={{ marginBottom: '8px' }}>SEND TO</div>
+                <div className="ldv2-email-list">
+                  {emailObjs.map((e) => {
+                    const conf = getConfidenceColor(e.confidence);
+                    const isSelected = selectedEmails.has(e.email);
+                    return (
+                      <div
+                        key={e.email}
+                        className={`ldv2-email-row ${isSelected ? 'ldv2-email-row--selected' : ''}`}
+                        onClick={() => toggleEmail(e.email)}
+                      >
+                        <div className="ldv2-email-checkbox">
+                          {isSelected && <Check size={10} strokeWidth={3} />}
+                        </div>
+                        <div className="ldv2-email-info">
+                          <span className="ldv2-email-addr">{e.email}</span>
+                          {(e.first_name || e.last_name || e.position) && (
+                            <span className="ldv2-email-name">
+                              {[e.first_name, e.last_name].filter(Boolean).join(' ')}
+                              {e.position ? ` · ${e.position}` : ''}
+                            </span>
+                          )}
+                        </div>
+                        {e.confidence > 0 && (
+                          <span className="ldv2-conf-badge" style={{ color: conf.color, background: conf.bg, border: `1px solid ${conf.border}` }}>
+                            {e.confidence}% {getConfidenceLabel(e.confidence)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Subject */}
+            {batch.channel === 'email' && (
+              <div style={{ marginBottom: '16px' }}>
+                <div className="ldv2-field-label" style={{ marginBottom: '7px' }}>SUBJECT</div>
+                <input
+                  className="input"
+                  value={messageSubject}
+                  onChange={e => setMessageSubject(e.target.value)}
+                  placeholder="Subject line — only for email batches"
+                />
+              </div>
+            )}
+
+            {/* Body */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div className="ldv2-field-label" style={{ marginBottom: '7px' }}>BODY</div>
+              <textarea
+                className="input"
+                value={messageBody}
+                onChange={e => setMessageBody(e.target.value)}
+                style={{ minHeight: '240px', lineHeight: 1.7, resize: 'vertical', flex: 1 }}
+                placeholder="Your message will appear here once Nessie processes this lead. You can also write it manually."
+              />
+              <div className="ld-helper" style={{ marginTop: '8px' }}>
+                {lead.message ? 'Auto-generated from your template. Edit freely before sending.' : 'Auto-generated message based on lead details. Edit freely before sending.'}
+              </div>
+            </div>
+
+            {/* Send actions */}
+            <div className="ldv2-send-row">
+              {batch.channel === 'email' && (
+                <button
+                  className="btn"
+                  onClick={() => setShowEmailComposer(true)}
+                  disabled={selectedEmails.size === 0}
+                >
+                  <Send size={13} /> Send Email
+                </button>
+              )}
+              <button className="btn secondary" onClick={() => copy(messageBody, 'Message')}>
+                <Copy size={13} /> Copy Message
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* ── EMAIL COMPOSER MODAL ── */}
       {showEmailComposer && (
         <EmailComposer
-          lead={{ id: lead.id, company_name: lead.company || lead.domain || lead.website || 'Unknown', full_name: (lead as any).full_name || '', email: getEmails(lead)[0] ?? '', industry: lead.industry }}
+          lead={{ id: lead.id, company_name: lead.company || lead.domain || lead.website || 'Unknown', full_name: (lead as any).full_name || '', email: Array.from(selectedEmails)[0] ?? getEmailObjs(lead)[0]?.email ?? '', industry: lead.industry }}
           onClose={() => setShowEmailComposer(false)}
           onSent={async () => { await handleStatusChange('contacted'); onToast('Email sent successfully!'); setShowEmailComposer(false); }}
         />

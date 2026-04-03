@@ -1352,6 +1352,344 @@ h1, h2, h3 { font-family: var(--font-head); }
 
 
 /* ════════════════════════════════════════════════════════════
+   LEAD DETAIL V2 — Two-column layout
+   ════════════════════════════════════════════════════════════ */
+
+.ld-wrap-v2 {
+  padding: 0;
+  max-width: none;
+}
+
+/* Header */
+.ldv2-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.ldv2-header-left { flex: 1; min-width: 0; }
+.ldv2-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ldv2-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.ldv2-batch-crumb {
+  font-size: 12px;
+  color: var(--teal);
+  font-weight: 500;
+  cursor: pointer;
+}
+.ldv2-batch-crumb:hover { text-decoration: underline; }
+.ldv2-company-crumb { font-size: 12px; color: var(--text3); }
+
+.ldv2-title {
+  font-family: var(--font-head);
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  margin: 0 0 10px;
+  line-height: 1.2;
+}
+
+.ldv2-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Two-column body */
+.ldv2-body {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 0;
+  align-items: start;
+  min-height: 0;
+}
+
+.ldv2-left {
+  padding: 20px 16px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-right: 1px solid var(--border);
+}
+
+.ldv2-right {
+  padding: 20px 28px 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Cards within columns */
+.ldv2-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+
+.ldv2-card-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  font-family: var(--font-head);
+  margin-bottom: 14px;
+}
+
+.ldv2-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--text4);
+  font-family: var(--font-head);
+  margin-bottom: 4px;
+}
+
+/* Contact grid */
+.ldv2-contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 20px;
+}
+
+/* Icebreaker */
+.ldv2-icebreaker-filled {
+  background: var(--bg2);
+  border-left: 3px solid var(--teal);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  padding: 12px 14px;
+}
+
+.ldv2-icebreaker-empty {
+  border: 1px dashed rgba(245,166,35,0.4);
+  background: rgba(245,166,35,0.04);
+  border-radius: var(--r-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.ldv2-icebreaker-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(245,166,35,0.1);
+  border: 1px solid rgba(245,166,35,0.2);
+  margin-bottom: 2px;
+}
+
+.ldv2-icebreaker-empty-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--amber);
+  margin: 0;
+  font-family: var(--font-head);
+}
+
+.ldv2-icebreaker-empty-text {
+  font-size: 12.5px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin: 0 0 6px;
+}
+
+.ldv2-icebreaker-empty-text strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ldv2-icebreaker-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* Empty state */
+.ldv2-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 12px;
+  text-align: center;
+}
+
+/* Actions list */
+.ldv2-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ldv2-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  transition: all 0.14s;
+}
+
+.ldv2-action-row:hover:not(:disabled) {
+  background: var(--surface2);
+  border-color: var(--border2);
+  color: var(--text);
+}
+
+.ldv2-action-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ldv2-action-danger {
+  color: var(--danger);
+  background: rgba(255,79,96,0.05);
+  border-color: rgba(255,79,96,0.15);
+}
+
+.ldv2-action-danger:hover {
+  background: rgba(255,79,96,0.1) !important;
+  border-color: rgba(255,79,96,0.3) !important;
+}
+
+.ldv2-coming-soon {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text4);
+  font-family: var(--font-head);
+}
+
+/* Message card */
+.ldv2-message-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Email selection */
+.ldv2-email-select-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 2px;
+}
+
+.ldv2-email-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ldv2-email-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  cursor: pointer;
+  transition: all 0.14s;
+}
+
+.ldv2-email-row:hover {
+  border-color: var(--border2);
+  background: var(--surface);
+}
+
+.ldv2-email-row--selected {
+  border-color: var(--teal-border);
+  background: var(--teal-subtle);
+}
+
+.ldv2-email-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.14s;
+  color: var(--teal);
+}
+
+.ldv2-email-row--selected .ldv2-email-checkbox {
+  background: var(--teal);
+  border-color: var(--teal);
+  color: #fff;
+}
+
+.ldv2-email-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ldv2-email-addr {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ldv2-email-name {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.ldv2-conf-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 50px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: var(--font-head);
+}
+
+/* Send row */
+.ldv2-send-row {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+  flex-wrap: wrap;
+}
+
+/* ════════════════════════════════════════════════════════════
    SIDEBAR DRAG HANDLE
    ════════════════════════════════════════════════════════════ */
 
