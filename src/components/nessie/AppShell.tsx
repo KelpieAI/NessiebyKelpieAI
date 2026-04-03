@@ -25,30 +25,33 @@ export const AppShell = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <TopBar
-        activeView={getActiveView()}
-        onViewChange={handleViewChange}
-        onCreateNewBatch={() => navigate('/queue/new')}
-      />
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        <TopBar
+          activeView={getActiveView()}
+          onViewChange={handleViewChange}
+          onCreateNewBatch={() => navigate('/queue/new')}
+        />
 
-      {/*
-        NessieQueue and SettingsPage now own their own Sidebar + RightSidebar.
-        AppShell is purely a frame — topbar, outlet, toasts, statusbar.
-      */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <Outlet />
+        {/*
+          NessieQueue and SettingsPage now own their own Sidebar + RightSidebar.
+          AppShell is purely a frame — topbar, outlet, toasts.
+        */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <Outlet />
+        </div>
+
+        {toasts.map((toast) => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
       </div>
 
-      {toasts.map((toast) => (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          onClose={() => removeToast(toast.id)}
-        />
-      ))}
-
+      {/* Fixed overlay — sits on top of everything, takes no layout space */}
       <NessieStatusBar />
-    </div>
+    </>
   );
 };
