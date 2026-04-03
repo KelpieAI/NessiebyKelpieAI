@@ -239,7 +239,7 @@ h1, h2, h3 { font-family: var(--font-head); }
 /* ════════════════════════════════════════════════════════════
    LAYOUT
    ════════════════════════════════════════════════════════════ */
-.layout { display:flex;height:calc(100vh - var(--topbar-height) - var(--statusbar-height));overflow:hidden }
+.layout { display:flex;height:calc(100vh - var(--topbar-height));overflow:hidden }
 
 /* ════════════════════════════════════════════════════════════
    SIDEBAR
