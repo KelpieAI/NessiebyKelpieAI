@@ -8,6 +8,58 @@ This project follows semantic versioning during the 0.x development phase:
 
 ---
 
+## [0.11.0] — Google OAuth & Gmail Email Sending
+
+### ✨ Added
+- **Google OAuth login** — sign in with your Google account instead 
+  of email and password
+- **Gmail API integration** — emails sent directly from the user's 
+  own Gmail address, not a third-party service
+- **Google token storage** — access and refresh tokens saved securely 
+  to the user profile and auto-refreshed when expired
+- **send-email Edge Function** — handles Gmail API calls and token 
+  refresh logic server-side
+
+### 🔧 Improved
+- useAuth hook rewritten — eliminated a race condition that caused 
+  the infinite loading spinner on page refresh
+- Login page updated — Google sign-in button sits above the 
+  email/password form
+- Netlify deployment fixed — added `_redirects` file for proper 
+  SPA routing, site now deploys correctly from master branch
+
+### 🛠 Infrastructure
+- Google Cloud OAuth 2.0 client configured with gmail.send scope
+- Supabase Site URL updated to nessie.kelpieai.co.uk
+- GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET added as Edge Function secrets
+- Custom domain nessie.kelpieai.co.uk live and fully working
+
+---
+
+## [0.10.0] — Lead Finder & Duplicate Detection
+
+### ✨ Added
+- **Lead Finder module** — search for businesses by industry and location 
+  using Google Places API, no more manual URL hunting
+- **Place Details enrichment** — every result automatically gets website 
+  and phone number
+- **Hunter.io email enrichment** — finds named contacts with job titles 
+  and confidence scores
+- **Global duplicate detection** — database-level enforcement using a 
+  normalised domain index, prevents the same business appearing twice
+- **Duplicate UI** — greyed out cards with history modal showing when 
+  the lead was added, its status, and options to re-add or view it
+- **AppShell layout component** — smooth navigation between pages with 
+  no sidebar flash or remounting
+- **Unified sidebar** — Lead Finder batches and Scraper batches live 
+  in the same place with visual distinction between them
+
+### 🔧 Improved
+- Lead Finder pipeline moved from Make.com to Supabase Edge Functions
+- Scraper and Lead Finder batches share one consistent pipeline
+
+---
+
  [0.9.0] — EU Infrastructure Migration & Platform Upgrade
  🚀 Overview
 This release upgrades Nessie's entire backend foundation — migrating all data, auth, and email infrastructure to the **EU (Ireland)** region.  
@@ -180,7 +232,7 @@ Questions? Check out our docs or reach out
 **Nessie by Kelpie AI**
   
 Version 0.9.0 · 12 December 2025  
-100% GDPR Compliant · 🏴󠁧󠁢󠁳󠁣󠁴󠁿 Made in Scotland · 🐉 Developed by Kelpie AI
+Made in Scotland · Developed by Kelpie AI 🐉
 
 
 
