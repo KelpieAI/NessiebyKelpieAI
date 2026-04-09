@@ -1072,6 +1072,58 @@ h1, h2, h3 { font-family: var(--font-head); }
 }
 .login-dev-btn:hover:not(:disabled) { background: rgba(255,79,96,0.12); border-color: rgba(255,79,96,0.35); }
 
+.login-google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 11px 16px;
+  margin-bottom: 4px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.14s;
+  letter-spacing: -0.1px;
+}
+
+.login-google-btn:hover:not(:disabled) {
+  background: var(--bg2);
+  border-color: var(--teal);
+}
+
+.login-google-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Divider between Google btn and email form ── */
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.login-divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-divider-text {
+  font-size: 11.5px;
+  color: var(--text4);
+  font-family: var(--font-body);
+  white-space: nowrap;
+}
+
 /* Forgot + footer */
 .login-forgot { margin-top: 18px; text-align: center; }
 .login-link { font-size: 13px; color: var(--teal); text-decoration: none; transition: opacity 0.14s; }
