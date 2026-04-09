@@ -23,23 +23,9 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Safety net — if loading hasn't resolved after 8 seconds, force it off.
-    // Prevents infinite spinner if Supabase is slow or profile fetch fails silently.
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 8000);
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setLoading(false);
-        clearTimeout(timeout);
-      }
-    });
-
+    // Single source of truth — onAuthStateChange handles everything.
+    // It fires immediately on mount with the current session (or null),
+    // so we don't need a separate getSession() call.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -47,10 +33,9 @@ export const useAuth = () => {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Save Google tokens if present (only on fresh OAuth login)
+        // Save Google tokens if this is a fresh OAuth login
         if (session.provider_token) {
           try {
-            const expiryTime = new Date(Date.now() + 3600 * 1000).toISOString();
             await supabase
               .from('profiles')
               .update({
@@ -59,27 +44,23 @@ export const useAuth = () => {
                 ...(session.provider_refresh_token && {
                   google_refresh_token: session.provider_refresh_token,
                 }),
-                google_token_expiry: expiryTime,
+                google_token_expiry: new Date(Date.now() + 3600 * 1000).toISOString(),
               })
               .eq('id', session.user.id);
           } catch (err) {
-            // Don't let a token save failure block the login
             console.error('Failed to save Google tokens:', err);
           }
         }
 
-        fetchProfile(session.user.id);
+        await fetchProfile(session.user.id);
       } else {
+        // No session — not logged in
         setProfile(null);
         setLoading(false);
-        clearTimeout(timeout);
       }
     });
 
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -105,7 +86,6 @@ export const useAuth = () => {
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
-      console.error('Error signing in:', error);
       return { data: null, error };
     }
   };
@@ -131,7 +111,6 @@ export const useAuth = () => {
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
-      console.error('Error signing in with Google:', error);
       return { data: null, error };
     }
   };
@@ -158,7 +137,6 @@ export const useAuth = () => {
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
-      console.error('Error signing up:', error);
       return { data: null, error };
     }
   };
@@ -169,7 +147,6 @@ export const useAuth = () => {
       if (error) throw error;
       return { error: null };
     } catch (error: any) {
-      console.error('Error signing out:', error);
       return { error };
     }
   };
@@ -185,21 +162,17 @@ export const useAuth = () => {
       await fetchProfile(user.id);
       return { error: null };
     } catch (error: any) {
-      console.error('Error updating profile:', error);
       return { error };
     }
   };
-
-  const isAdmin = profile?.role === 'admin';
-  const hasGmailConnected = !!profile?.google_refresh_token;
 
   return {
     user,
     profile,
     session,
     loading,
-    isAdmin,
-    hasGmailConnected,
+    isAdmin: profile?.role === 'admin',
+    hasGmailConnected: !!profile?.google_refresh_token,
     signIn,
     signInWithGoogle,
     signUp,
