@@ -3,18 +3,29 @@ import { useAuth } from '../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 
+// Google "G" logo as inline SVG — no external dependency needed
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+    <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+  </svg>
+);
+
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showDevMode, setShowDevMode] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
 
-  // Apply theme on the login page too
   useTheme();
 
+  // Secret dev mode — type W W S S A D on keyboard
   useEffect(() => {
     const sequence = ['w', 'w', 's', 's', 'a', 'd'];
     let index = 0;
@@ -45,6 +56,18 @@ export const LoginPage = () => {
     if (data) navigate('/queue');
   };
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setGoogleLoading(true);
+    const { error } = await signInWithGoogle();
+    // If successful, Supabase redirects the page — no need to navigate manually.
+    // If it fails, we show the error and re-enable the button.
+    if (error) {
+      setError(error.message || 'Google sign in failed');
+      setGoogleLoading(false);
+    }
+  };
+
   const handleDevLogin = async () => {
     setError('');
     setLoading(true);
@@ -55,10 +78,7 @@ export const LoginPage = () => {
 
   return (
     <div className="login-page">
-      {/* Background grid texture */}
       <div className="login-grid" />
-
-      {/* Teal radial glow */}
       <div className="login-glow" />
 
       <div className="login-card-wrap">
@@ -78,8 +98,31 @@ export const LoginPage = () => {
 
         {/* Form card */}
         <div className="login-card">
-          <form onSubmit={handleSubmit}>
 
+          {/* ── Google sign-in button ── */}
+          <button
+            type="button"
+            className="login-google-btn"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading || loading}
+          >
+            {googleLoading ? (
+              <div className="login-spinner" />
+            ) : (
+              <GoogleIcon />
+            )}
+            {googleLoading ? 'Redirecting to Google…' : 'Sign in with Google'}
+          </button>
+
+          {/* Divider */}
+          <div className="login-divider">
+            <span className="login-divider-line" />
+            <span className="login-divider-text">or</span>
+            <span className="login-divider-line" />
+          </div>
+
+          {/* ── Email / password form (existing) ── */}
+          <form onSubmit={handleSubmit}>
             <div className="login-field">
               <label className="login-label">Email</label>
               <input
@@ -117,7 +160,7 @@ export const LoginPage = () => {
               </div>
             )}
 
-            <button type="submit" className="login-btn" disabled={loading}>
+            <button type="submit" className="login-btn" disabled={loading || googleLoading}>
               {loading ? (
                 <>
                   <div className="login-spinner" />
@@ -126,7 +169,6 @@ export const LoginPage = () => {
               ) : 'Sign In'}
             </button>
 
-            {/* Secret dev mode — WWSSAD */}
             {showDevMode && (
               <button
                 type="button"
@@ -145,7 +187,6 @@ export const LoginPage = () => {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="login-footer">
           Powered by Kelpie AI · v0.10.0 · Internal use only
         </p>
