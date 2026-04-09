@@ -23,6 +23,12 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Safety net — if loading hasn't resolved after 8 seconds, force it off.
+    // Prevents infinite spinner if Supabase is slow or profile fetch fails silently.
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -30,6 +36,7 @@ export const useAuth = () => {
         fetchProfile(session.user.id);
       } else {
         setLoading(false);
+        clearTimeout(timeout);
       }
     });
 
@@ -40,33 +47,39 @@ export const useAuth = () => {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // If the user just signed in via Google AND we got tokens back,
-        // save those tokens to their profile so we can send emails later.
+        // Save Google tokens if present (only on fresh OAuth login)
         if (session.provider_token) {
-          const expiryTime = new Date(Date.now() + 3600 * 1000).toISOString();
-          await supabase
-            .from('profiles')
-            .update({
-              google_email: session.user.email,
-              google_access_token: session.provider_token,
-              // provider_refresh_token is only present on first login
-              // or when we force the consent screen (which we do — see signInWithGoogle)
-              ...(session.provider_refresh_token && {
-                google_refresh_token: session.provider_refresh_token,
-              }),
-              google_token_expiry: expiryTime,
-            })
-            .eq('id', session.user.id);
+          try {
+            const expiryTime = new Date(Date.now() + 3600 * 1000).toISOString();
+            await supabase
+              .from('profiles')
+              .update({
+                google_email: session.user.email,
+                google_access_token: session.provider_token,
+                ...(session.provider_refresh_token && {
+                  google_refresh_token: session.provider_refresh_token,
+                }),
+                google_token_expiry: expiryTime,
+              })
+              .eq('id', session.user.id);
+          } catch (err) {
+            // Don't let a token save failure block the login
+            console.error('Failed to save Google tokens:', err);
+          }
         }
 
         fetchProfile(session.user.id);
       } else {
         setProfile(null);
         setLoading(false);
+        clearTimeout(timeout);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
@@ -86,13 +99,9 @@ export const useAuth = () => {
     }
   };
 
-  // ── Email + password sign in (existing) ──────────────────────────────
   const signIn = async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
@@ -101,11 +110,6 @@ export const useAuth = () => {
     }
   };
 
-  // ── Google OAuth sign in (new) ───────────────────────────────────────
-  // This opens a Google popup/redirect asking for:
-  //   - Basic profile (email, name)
-  //   - Gmail send permission
-  // We use access_type=offline + prompt=consent to always get a refresh token.
   const signInWithGoogle = async () => {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -118,8 +122,8 @@ export const useAuth = () => {
             'https://www.googleapis.com/auth/gmail.send',
           ].join(' '),
           queryParams: {
-            access_type: 'offline',  // gives us a refresh token
-            prompt: 'consent',        // always show consent screen so refresh token is returned
+            access_type: 'offline',
+            prompt: 'consent',
           },
           redirectTo: window.location.origin + '/queue',
         },
@@ -147,7 +151,7 @@ export const useAuth = () => {
           data: {
             full_name: fullName,
             username: username || email.split('@')[0],
-            role: role,
+            role,
           },
         },
       });
