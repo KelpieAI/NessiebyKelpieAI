@@ -6,7 +6,7 @@ export const NessieStatusBar = () => {
 
   return (
     <div className="status-bar">
-      Nessie by Kelpie AI (beta) | v0.10.0.249 | 25 Mar 2026 23:35
+      Nessie by Kelpie AI (beta) | v0.11.0.301 | 09 Mar 2026 23:54
       {shortUserId ? ` | User: ${shortUserId}` : ''}
     </div>
   );
