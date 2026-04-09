@@ -53,10 +53,26 @@ This project follows semantic versioning during the 0.x development phase:
   no sidebar flash or remounting
 - **Unified sidebar** — Lead Finder batches and Scraper batches live 
   in the same place with visual distinction between them
+  - **Full CSS design system** — CSS variables for every colour, spacing, 
+  radius, and font throughout the entire app. No more hardcoded values
+- **Three themes** — Kelpie (dark teal, the signature look), Dark 
+  (pure neutral black), and Light mode. Switchable from Settings → Appearance
+- **New login page** — pulsing logo ring animation, layered dark 
+  background with grid texture and teal glow, proper loading spinner 
+  inside the sign-in button
+- **Welcome / home screen redesign** — "Ready to Hunt" hero section 
+  with the Kelpie horse logo, eyebrow text, and Lead Finder card
 
 ### 🔧 Improved
 - Lead Finder pipeline moved from Make.com to Supabase Edge Functions
 - Scraper and Lead Finder batches share one consistent pipeline
+- - TopBar — fully rebuilt with proper CSS classes, initials avatar, 
+  role badge, and themed dropdown menu
+- BatchCard — all hardcoded colours replaced with CSS variables, 
+  status pills are now theme-aware
+- RightSidebar, HotActivity, QuickNotes — ripped out hardcoded dark 
+  colours that were invisible in light mode
+- Every component now respects all three themes correctly
 
 ---
 
