@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { NessieQueue } from './pages/NessieQueue';
 import { CreateBatchPage } from './pages/CreateBatchPage';
@@ -12,8 +14,12 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        {/* ── Public routes — no login required ── */}
+        <Route path="/login"   element={<LoginPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms"   element={<TermsPage />} />
 
+        {/* ── Protected routes — login required ── */}
         <Route
           element={
             <ProtectedRoute>
