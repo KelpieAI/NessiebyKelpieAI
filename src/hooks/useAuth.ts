@@ -28,33 +28,32 @@ export const useAuth = () => {
     // so we don't need a separate getSession() call.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        // Save Google tokens if this is a fresh OAuth login
-        if (session.provider_token) {
-          try {
-            await supabase
-              .from('profiles')
-              .update({
-                google_email: session.user.email,
-                google_access_token: session.provider_token,
-                ...(session.provider_refresh_token && {
-                  google_refresh_token: session.provider_refresh_token,
-                }),
-                google_token_expiry: new Date(Date.now() + 3600 * 1000).toISOString(),
-              })
-              .eq('id', session.user.id);
-          } catch (err) {
-            console.error('Failed to save Google tokens:', err);
+        setTimeout(async () => {
+          if (session.provider_token) {
+            try {
+              await supabase
+                .from('profiles')
+                .update({
+                  google_email: session.user!.email,
+                  google_access_token: session.provider_token,
+                  ...(session.provider_refresh_token && {
+                    google_refresh_token: session.provider_refresh_token,
+                  }),
+                  google_token_expiry: new Date(Date.now() + 3600 * 1000).toISOString(),
+                })
+                .eq('id', session.user!.id);
+            } catch (err) {
+              console.error('Failed to save Google tokens:', err);
+            }
           }
-        }
-
-        await fetchProfile(session.user.id);
+          await fetchProfile(session.user!.id);
+        }, 0);
       } else {
-        // No session — not logged in
         setProfile(null);
         setLoading(false);
       }
