@@ -9,18 +9,21 @@ import '../../styles/nessie.css';
 export const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toasts, showToast, removeToast } = useToast();
+  const { toasts, removeToast } = useToast();
 
-  // Initialise theme — reads from localStorage, stamps data-theme on <html>
   useTheme();
 
   const getActiveView = () => {
-    if (location.pathname.startsWith('/settings')) return 'Settings';
+    if (location.pathname.startsWith('/settings'))  return 'Settings';
+    if (location.pathname.startsWith('/analytics')) return 'Analytics';
+    if (location.pathname.startsWith('/docs'))      return 'Docs';
     return 'Queue';
   };
 
   const handleViewChange = (view: string) => {
-    if (view === 'Settings') navigate('/settings');
+    if (view === 'Settings')  navigate('/settings');
+    else if (view === 'Analytics') navigate('/analytics');
+    else if (view === 'Docs')      navigate('/docs');
     else navigate('/queue');
   };
 
@@ -33,10 +36,6 @@ export const AppShell = () => {
           onCreateNewBatch={() => navigate('/queue/new')}
         />
 
-        {/*
-          NessieQueue and SettingsPage now own their own Sidebar + RightSidebar.
-          AppShell is purely a frame — topbar, outlet, toasts.
-        */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <Outlet />
         </div>
@@ -50,7 +49,6 @@ export const AppShell = () => {
         ))}
       </div>
 
-      {/* Fixed overlay — sits on top of everything, takes no layout space */}
       <NessieStatusBar />
     </>
   );
