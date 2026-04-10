@@ -30,6 +30,7 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
   const [body, setBody] = useState('');
   const [manualEmail, setManualEmail] = useState('');
   const [sending, setSending] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -41,7 +42,6 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
       .select('id, name, subject, body')
       .eq('user_id', user!.id)
       .eq('is_active', true);
-    
     if (data) setTemplates(data);
   };
 
@@ -63,29 +63,28 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
   };
 
   const handleSend = async () => {
+    setErrorMsg(null);
     const finalEmail = lead.email || manualEmail;
 
     if (!finalEmail) {
-      alert('Email address is required');
+      setErrorMsg('Email address is required.');
       return;
     }
 
     if (!subject || !body) {
-      alert('Subject and body are required');
+      setErrorMsg('Subject and body are both required.');
       return;
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(finalEmail)) {
-      alert('Please enter a valid email address');
+      setErrorMsg('Please enter a valid email address.');
       return;
     }
 
     setSending(true);
     try {
-      // Call send-email Edge Function
-      const { data, error } = await supabase.functions.invoke('send-email', {
+      const { error } = await supabase.functions.invoke('send-email', {
         body: {
           to_email: finalEmail,
           to_name: lead.full_name,
@@ -93,17 +92,16 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
           body,
           lead_id: lead.id,
           template_id: selectedTemplateId || null,
-        }
+        },
       });
 
       if (error) throw error;
 
-      alert('Email sent successfully!');
       onSent();
       onClose();
     } catch (error: any) {
       console.error('Error sending email:', error);
-      alert('Failed to send email: ' + error.message);
+      setErrorMsg('Failed to send email: ' + (error.message || 'Unknown error'));
     } finally {
       setSending(false);
     }
@@ -112,68 +110,65 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
   const finalEmail = lead.email || manualEmail;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.85)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px',
-      fontFamily: 'Space Grotesk, sans-serif',
-    }}
-    onClick={onClose}>
-      <div style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border)',
-        borderRadius: '12px',
-        padding: '24px',
-        maxWidth: '700px',
-        width: '100%',
-        maxHeight: '90vh',
-        overflow: 'auto',
+    <div
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000, padding: '20px', fontFamily: 'Space Grotesk, sans-serif',
       }}
-      onClick={(e) => e.stopPropagation()}>
-        
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: '12px', padding: '24px', maxWidth: '700px',
+          width: '100%', maxHeight: '90vh', overflow: 'auto',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
               Send Email
             </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text3)' }}>
               To: {lead.full_name} ({finalEmail || 'No email'})
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text3)' }}>
             <X size={20} />
           </button>
         </div>
 
-        {/* Email Input (if no email exists) */}
+        {/* Inline error banner */}
+        {errorMsg && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '10px 14px', marginBottom: '16px',
+            background: 'rgba(255,79,96,0.1)', border: '1px solid rgba(255,79,96,0.3)',
+            borderRadius: '6px',
+          }}>
+            <AlertCircle size={15} color="var(--danger)" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: 'var(--danger)' }}>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Manual email input (if no email on lead) */}
         {!lead.email && (
           <div style={{ marginBottom: '16px' }}>
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px',
-              background: 'rgba(251, 191, 36, 0.1)',
-              border: '1px solid rgba(251, 191, 36, 0.3)',
-              borderRadius: '6px',
-              marginBottom: '12px',
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '12px', background: 'rgba(251,191,36,0.1)',
+              border: '1px solid rgba(251,191,36,0.3)', borderRadius: '6px', marginBottom: '12px',
             }}>
               <AlertCircle size={16} color="#fbbf24" />
               <span style={{ fontSize: '13px', color: '#fbbf24' }}>
                 No email found for this lead. Please enter one manually.
               </span>
             </div>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: '8px' }}>
               Email Address *
             </label>
             <input
@@ -182,36 +177,28 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
               onChange={(e) => setManualEmail(e.target.value)}
               placeholder="example@company.com"
               style={{
-                width: '100%',
-                padding: '10px 12px',
-                fontSize: '13px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid var(--border)',
-                borderRadius: '6px',
-                color: 'var(--text)',
+                width: '100%', padding: '10px 12px', fontSize: '13px',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                borderRadius: '6px', color: 'var(--text)',
               }}
             />
           </div>
         )}
 
-        {/* Template Selector */}
+        {/* Template selector */}
         <div style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: '8px' }}>
             Template (optional)
           </label>
           <select
             value={selectedTemplateId}
             onChange={(e) => handleTemplateSelect(e.target.value)}
             style={{
-              width: '100%',
-              padding: '10px 12px',
-              fontSize: '13px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              color: 'var(--text)',
-              cursor: 'pointer',
-            }}>
+              width: '100%', padding: '10px 12px', fontSize: '13px',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+              borderRadius: '6px', color: 'var(--text)', cursor: 'pointer',
+            }}
+          >
             <option value="">-- Select a template --</option>
             {templates.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
@@ -221,7 +208,7 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
 
         {/* Subject */}
         <div style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: '8px' }}>
             Subject *
           </label>
           <input
@@ -230,20 +217,16 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Email subject"
             style={{
-              width: '100%',
-              padding: '10px 12px',
-              fontSize: '13px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              color: 'var(--text)',
+              width: '100%', padding: '10px 12px', fontSize: '13px',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+              borderRadius: '6px', color: 'var(--text)',
             }}
           />
         </div>
 
         {/* Body */}
         <div style={{ marginBottom: '20px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text3)', display: 'block', marginBottom: '8px' }}>
             Body *
           </label>
           <textarea
@@ -252,16 +235,10 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
             placeholder="Email body"
             rows={12}
             style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: '13px',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              color: 'var(--text)',
-              resize: 'vertical',
-              fontFamily: 'Space Grotesk, sans-serif',
-              lineHeight: '1.6',
+              width: '100%', padding: '12px', fontSize: '13px',
+              background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+              borderRadius: '6px', color: 'var(--text)', resize: 'vertical',
+              fontFamily: 'Space Grotesk, sans-serif', lineHeight: '1.6',
             }}
           />
         </div>
@@ -271,33 +248,25 @@ export const EmailComposer = ({ lead, onClose, onSent }: EmailComposerProps) => 
           <button
             onClick={onClose}
             style={{
-              padding: '10px 20px',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}>
+              padding: '10px 20px', fontSize: '13px', fontWeight: 600,
+              color: 'var(--text)', background: 'transparent',
+              border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer',
+            }}
+          >
             Cancel
           </button>
           <button
             onClick={handleSend}
             disabled={sending || !subject || !body || !finalEmail}
             style={{
-              padding: '10px 20px',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: sending || !finalEmail ? 'var(--text-secondary)' : '#021014',
-              background: sending || !finalEmail ? 'rgba(17, 194, 210, 0.5)' : 'var(--accent)',
-              border: 'none',
-              borderRadius: '6px',
+              padding: '10px 20px', fontSize: '13px', fontWeight: 600,
+              color: sending || !finalEmail ? 'var(--text3)' : '#021014',
+              background: sending || !finalEmail ? 'rgba(17,194,210,0.5)' : 'var(--teal)',
+              border: 'none', borderRadius: '6px',
               cursor: sending || !finalEmail ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}>
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}
+          >
             <Send size={14} />
             {sending ? 'Sending...' : 'Send Email'}
           </button>
