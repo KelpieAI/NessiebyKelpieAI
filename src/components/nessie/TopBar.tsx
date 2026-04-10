@@ -15,15 +15,10 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const views = ['Queue', 'Analytics', 'Settings'];
+  const views = ['Queue', 'Analytics', 'Docs', 'Settings'];
 
   const handleViewChange = (view: string) => {
-    if (view === 'Settings') {
-      navigate('/settings');
-    } else {
-      navigate('/queue');
-      onViewChange(view);
-    }
+    onViewChange(view);
   };
 
   useEffect(() => {
@@ -41,7 +36,6 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
     window.location.href = '/login';
   };
 
-  // Get initials from full name
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -107,14 +101,12 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
         {/* Dropdown */}
         {showUserMenu && (
           <div className="topbar-dropdown">
-            {/* User info header */}
             <div className="topbar-dropdown-header">
               <div className="tdd-name">{profile?.full_name}</div>
               <div className="tdd-email">{profile?.email}</div>
               {isAdmin && <span className="tdd-badge">Admin</span>}
             </div>
 
-            {/* Menu items */}
             <div className="topbar-dropdown-items">
               <button
                 className="tdd-item"
