@@ -1,19 +1,9 @@
 import { useState } from 'react';
-import { Mail, Plus, Trash2, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
+import { Mail, Trash2, CheckCircle, AlertCircle, ChevronRight } from 'lucide-react';
 import { EmailTemplatesManager } from '../components/EmailTemplatesManager';
 import { useTheme } from '../hooks/useTheme';
+import { useAuth } from '../hooks/useAuth';
 import type { Theme } from '../hooks/useTheme';
-
-interface EmailAccount {
-  id: string;
-  provider: 'gmail' | 'outlook';
-  email_address: string;
-  display_name?: string;
-  is_active: boolean;
-  is_primary: boolean;
-  last_used_at?: string;
-  created_at: string;
-}
 
 const THEMES: {
   id: Theme;
@@ -43,25 +33,11 @@ const THEMES: {
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'integrations' | 'templates' | 'profile' | 'appearance'>('integrations');
-  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
-  const [loading, setLoading] = useState(false);
   const { theme, setTheme } = useTheme();
+  const { profile } = useAuth();
 
-  const handleConnectGmail = () => {
-    alert('Gmail OAuth flow will:\n1. Open Google consent screen\n2. User grants permission\n3. Store OAuth token\n4. Ready to send emails!');
-  };
-
-  const handleConnectOutlook = () => {
-    alert('Outlook OAuth flow will:\n1. Open Microsoft consent screen\n2. User grants permission\n3. Store OAuth token\n4. Ready to send emails!');
-  };
-
-  const handleDisconnect = (accountId: string) => {
-    setEmailAccounts(prev => prev.filter(acc => acc.id !== accountId));
-  };
-
-  const handleSetPrimary = (accountId: string) => {
-    setEmailAccounts(prev => prev.map(acc => ({ ...acc, is_primary: acc.id === accountId })));
-  };
+  const gmailConnected = !!profile?.google_refresh_token;
+  const gmailEmail = profile?.google_email;
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '1000px', margin: '0 auto' }}>
@@ -88,17 +64,12 @@ export const SettingsPage = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             style={{
-              padding: '10px 16px',
-              fontSize: '13px',
-              fontWeight: 500,
+              padding: '10px 16px', fontSize: '13px', fontWeight: 500,
               fontFamily: 'var(--font-head)',
               color: activeTab === tab.id ? 'var(--teal)' : 'var(--text3)',
-              background: 'transparent',
-              border: 'none',
+              background: 'transparent', border: 'none',
               borderBottom: activeTab === tab.id ? '2px solid var(--teal)' : '2px solid transparent',
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-              letterSpacing: '0.01em',
+              cursor: 'pointer', transition: 'all 0.15s', letterSpacing: '0.01em',
             }}
           >
             {tab.label}
@@ -109,87 +80,105 @@ export const SettingsPage = () => {
       {/* ── INTEGRATIONS ── */}
       {activeTab === 'integrations' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* Email Accounts */}
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div>
-                <h2 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '2px' }}>Email Accounts</h2>
-                <p style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-body)' }}>Connect email accounts to send outreach from Nessie</p>
-              </div>
+            <div style={{ marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '2px' }}>
+                Email Accounts
+              </h2>
+              <p style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-body)' }}>
+                Connected accounts used to send outreach from Nessie
+              </p>
             </div>
 
-            {emailAccounts.length > 0 ? (
-              <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {emailAccounts.map((account) => (
-                  <div key={account.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: account.provider === 'gmail' ? 'linear-gradient(135deg,#EA4335,#FBBC04)' : 'linear-gradient(135deg,#0078D4,#50E6FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Mail size={16} color="white" />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {account.email_address}
-                          {account.is_primary && (
-                            <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '3px', background: 'var(--teal-subtle)', color: 'var(--teal)', letterSpacing: '0.3px' }}>
-                              PRIMARY
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {account.provider === 'gmail' ? 'Gmail' : 'Outlook'}
-                          {account.is_active
-                            ? <><span>·</span><CheckCircle size={10} style={{ color: '#22c55e' }} /><span style={{ color: '#22c55e' }}>Connected</span></>
-                            : <><span>·</span><AlertCircle size={10} style={{ color: 'var(--danger)' }} /><span style={{ color: 'var(--danger)' }}>Disconnected</span></>
-                          }
-                        </div>
-                      </div>
+            {gmailConnected ? (
+              /* Show the connected Gmail account */
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px', background: 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 'var(--r-md)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '32px', height: '32px', borderRadius: '6px',
+                    background: 'linear-gradient(135deg,#EA4335,#FBBC04)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Mail size={16} color="white" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {gmailEmail}
+                      <span style={{ fontSize: '9px', fontWeight: 700, padding: '2px 5px', borderRadius: '3px', background: 'var(--teal-subtle)', color: 'var(--teal)', letterSpacing: '0.3px' }}>
+                        PRIMARY
+                      </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {!account.is_primary && (
-                        <button onClick={() => handleSetPrimary(account.id)} className="btn ghost small">Set Primary</button>
-                      )}
-                      <button
-                        onClick={() => handleDisconnect(account.id)}
-                        style={{ padding: '5px 10px', fontSize: '11px', fontFamily: 'var(--font-body)', color: 'var(--danger)', background: 'transparent', border: '1px solid rgba(255,79,96,0.25)', borderRadius: 'var(--r-sm)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.14s' }}
-                      >
-                        <Trash2 size={10} /> Disconnect
-                      </button>
+                    <div style={{ fontSize: '11px', color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Gmail
+                      <span>·</span>
+                      <CheckCircle size={10} style={{ color: '#22c55e' }} />
+                      <span style={{ color: '#22c55e' }}>Connected via Google Sign-In</span>
                     </div>
                   </div>
-                ))}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text3)', fontFamily: 'var(--font-body)' }}>
+                  Sign out and back in with Google to switch accounts
+                </div>
               </div>
             ) : (
-              <div style={{ padding: '24px', textAlign: 'center', background: 'var(--surface)', border: '1px dashed var(--border2)', borderRadius: 'var(--r-md)', marginBottom: '12px' }}>
+              /* No Gmail connected */
+              <div style={{
+                padding: '24px', textAlign: 'center', background: 'var(--surface)',
+                border: '1px dashed var(--border2)', borderRadius: 'var(--r-md)', marginBottom: '12px',
+              }}>
                 <Mail size={28} color="var(--text3)" style={{ opacity: 0.4, marginBottom: '8px' }} />
-                <p style={{ fontSize: '13px', color: 'var(--text3)', marginBottom: '2px', fontFamily: 'var(--font-body)' }}>No email accounts connected</p>
-                <p style={{ fontSize: '11px', color: 'var(--text4)', fontFamily: 'var(--font-body)' }}>Connect an account below to start sending</p>
+                <p style={{ fontSize: '13px', color: 'var(--text3)', marginBottom: '4px', fontFamily: 'var(--font-body)' }}>
+                  No email account connected
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text4)', fontFamily: 'var(--font-body)' }}>
+                  Sign in with Google to connect your Gmail account
+                </p>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={handleConnectGmail}
-                disabled={loading}
-                style={{ flex: 1, padding: '10px 14px', fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-head)', color: '#fff', background: 'linear-gradient(135deg,#EA4335,#FBBC04)', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: loading ? 0.5 : 1, transition: 'all 0.15s' }}
-              >
-                <Plus size={14} /> Connect Gmail
-              </button>
-              <button
-                onClick={handleConnectOutlook}
-                disabled={loading}
-                style={{ flex: 1, padding: '10px 14px', fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-head)', color: '#fff', background: 'linear-gradient(135deg,#0078D4,#50E6FF)', border: 'none', borderRadius: 'var(--r-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: loading ? 0.5 : 1, transition: 'all 0.15s' }}
-              >
-                <Plus size={14} /> Connect Outlook
-              </button>
+            {/* Outlook — coming soon */}
+            <div style={{
+              marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '12px 14px', background: 'var(--surface)',
+              border: '1px solid var(--border)', borderRadius: 'var(--r-md)', opacity: 0.6,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '6px',
+                  background: 'linear-gradient(135deg,#0078D4,#50E6FF)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <Mail size={16} color="white" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-head)', color: 'var(--text)' }}>
+                    Outlook / Microsoft 365
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text3)' }}>Coming soon</div>
+                </div>
+              </div>
+              <AlertCircle size={14} color="var(--text3)" />
             </div>
           </div>
 
+          {/* Coming soon integrations */}
           {[
             { title: 'CRM Integrations',  sub: 'Coming soon · HubSpot, Salesforce, Pipedrive' },
             { title: 'Automation Tools',  sub: 'Coming soon · Make.com, Zapier, n8n' },
           ].map((item) => (
             <div
               key={item.title}
-              style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'border-color 0.14s' }}
+              style={{
+                background: 'var(--bg2)', border: '1px solid var(--border)',
+                borderRadius: 'var(--r-lg)', padding: '16px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}
             >
               <div>
                 <h3 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '2px' }}>{item.title}</h3>
@@ -206,17 +195,36 @@ export const SettingsPage = () => {
 
       {/* ── PROFILE ── */}
       {activeTab === 'profile' && (
-        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: '20px' }}>
-          <h2 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '8px' }}>Profile Settings</h2>
-          <p style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-body)' }}>Coming soon…</p>
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: '24px' }}>
+          <h2 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '16px' }}>
+            Your Profile
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {[
+              { label: 'Full Name',  value: profile?.full_name },
+              { label: 'Email',      value: profile?.email },
+              { label: 'Role',       value: profile?.role === 'admin' ? 'Admin' : 'User' },
+              { label: 'Gmail',      value: profile?.google_email || 'Not connected' },
+            ].map(({ label, value }) => (
+              <div key={label} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 14px', background: 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 'var(--r-md)',
+              }}>
+                <span style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-body)' }}>{label}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-head)' }}>{value}</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: '11px', color: 'var(--text4)', marginTop: '16px', fontFamily: 'var(--font-body)' }}>
+            Profile editing coming in a future update.
+          </p>
         </div>
       )}
 
       {/* ── APPEARANCE ── */}
       {activeTab === 'appearance' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* Theme picker */}
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: '20px' }}>
             <div style={{ marginBottom: '18px' }}>
               <h2 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '4px' }}>Theme</h2>
@@ -236,25 +244,19 @@ export const SettingsPage = () => {
                     style={{
                       background: 'none',
                       border: `2px solid ${isActive ? 'var(--teal)' : 'var(--border2)'}`,
-                      borderRadius: 'var(--r-lg)',
-                      padding: '0',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      overflow: 'hidden',
-                      textAlign: 'left',
+                      borderRadius: 'var(--r-lg)', padding: '0',
+                      cursor: 'pointer', transition: 'all 0.15s',
+                      overflow: 'hidden', textAlign: 'left',
                       boxShadow: isActive ? '0 0 0 4px var(--teal-subtle)' : 'none',
                     }}
                   >
-                    {/* Mini theme preview */}
                     <div style={{ background: t.preview.bg, padding: '12px', borderBottom: `1px solid ${isActive ? 'var(--teal-border)' : 'var(--border)'}` }}>
-                      {/* Mini topbar */}
                       <div style={{ background: t.preview.bg2, borderRadius: '5px 5px 0 0', padding: '6px 8px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', border: `1px solid ${borderColor}` }}>
                         <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: t.preview.teal, opacity: 0.9 }} />
                         <div style={{ width: '24px', height: '6px', borderRadius: '3px', background: t.preview.text, opacity: 0.7 }} />
                         <div style={{ flex: 1 }} />
                         <div style={{ width: '28px', height: '6px', borderRadius: '3px', background: t.preview.teal, opacity: 0.8 }} />
                       </div>
-                      {/* Mini layout */}
                       <div style={{ display: 'flex', gap: '5px', height: '44px' }}>
                         <div style={{ width: '32px', background: t.preview.bg2, borderRadius: '4px', border: `1px solid ${borderColor}`, padding: '4px' }}>
                           <div style={{ height: '5px', background: t.preview.teal, borderRadius: '2px', marginBottom: '3px', opacity: 0.8 }} />
@@ -268,8 +270,6 @@ export const SettingsPage = () => {
                         </div>
                       </div>
                     </div>
-
-                    {/* Label */}
                     <div style={{ padding: '10px 12px', background: 'var(--bg2)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
                         <span style={{ fontFamily: 'var(--font-head)', fontSize: '13px', fontWeight: 700, color: isActive ? 'var(--teal)' : 'var(--text)' }}>
@@ -291,7 +291,6 @@ export const SettingsPage = () => {
             </div>
           </div>
 
-          {/* Coming soon */}
           <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: '16px 20px' }}>
             <h2 style={{ fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-head)', color: 'var(--text)', marginBottom: '4px' }}>More Customisation</h2>
             <p style={{ fontSize: '12px', color: 'var(--text3)', fontFamily: 'var(--font-body)' }}>
