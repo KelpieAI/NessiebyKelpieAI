@@ -22,6 +22,11 @@ interface SentEmail {
   click_count: number;
   sent_at: string;
   error: string | null;
+  replied: boolean;
+  replied_at: string | null;
+  reply_snippet: string | null;
+  reply_from: string | null;
+  gmail_thread_id: string | null;
   lead?: {
     company: string | null;
     lead_status: string | null;
@@ -108,7 +113,7 @@ const EmailRow = ({ email }: { email: SentEmail }) => {
   const [expanded, setExpanded] = useState(false);
   const [opens, setOpens] = useState<{ id: string; opened_at: string }[]>([]);
   const [opensLoading, setOpensLoading] = useState(false);
-  const replied = email.lead?.lead_status === 'replied';
+  const replied = email.replied || email.lead?.lead_status === 'replied';
 
   const fetchOpens = async () => {
     if (opens.length > 0) return; // already loaded
@@ -228,6 +233,40 @@ const EmailRow = ({ email }: { email: SentEmail }) => {
             )}
           </div>
 
+          {/* Reply snippet */}
+          {email.replied && email.reply_snippet && (
+            <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', background: 'rgba(16,185,129,0.04)' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#10B981', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MessageSquare size={11} color="#10B981" /> Reply Received
+              </div>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '8px' }}>
+                {email.reply_from && (
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--text4)', fontFamily: 'var(--font-body)', marginBottom: '2px' }}>From</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>{email.reply_from}</div>
+                  </div>
+                )}
+                {email.replied_at && (
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--text4)', fontFamily: 'var(--font-body)', marginBottom: '2px' }}>When</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)' }}>
+                      {new Date(email.replied_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      <span style={{ marginLeft: '6px', color: 'var(--text4)' }}>· {formatTimeAgo(email.replied_at)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div style={{
+                padding: '10px 12px', background: 'var(--surface)',
+                border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--r-md)',
+                fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)',
+                lineHeight: '1.6', fontStyle: 'italic',
+              }}>
+                "{email.reply_snippet}{email.reply_snippet.length >= 300 ? '…' : ''}"
+              </div>
+            </div>
+          )}
+
           {/* Opens timeline */}
           {email.open_count > 0 && (
             <div style={{ padding: '12px 14px' }}>
@@ -302,7 +341,7 @@ export const ActivitiesPage = () => {
       // Fetch sent emails with lead data
       const { data: sentData } = await supabase
         .from('sent_emails')
-        .select('id, lead_id, to_email, to_name, subject, opened, open_count, first_opened_at, last_opened_at, clicked, click_count, sent_at, error')
+        .select('id, lead_id, to_email, to_name, subject, opened, open_count, first_opened_at, last_opened_at, clicked, click_count, sent_at, error, replied, replied_at, reply_snippet, reply_from, gmail_thread_id')
         .order('sent_at', { ascending: false })
         .limit(200);
 
@@ -347,7 +386,7 @@ export const ActivitiesPage = () => {
       const sent    = enriched.length;
       const opened  = enriched.filter(e => e.opened).length;
       const clicked = enriched.filter(e => e.clicked).length;
-      const replied = enriched.filter(e => e.lead?.lead_status === 'replied').length;
+      const replied = enriched.filter(e => e.replied || e.lead?.lead_status === 'replied').length;
       setStats({ sent, opened, clicked, replied, openRate: sent > 0 ? Math.round(opened / sent * 100) : 0 });
 
       // Batch summaries — fetch batches that have emails written (message field populated)
@@ -400,7 +439,7 @@ export const ActivitiesPage = () => {
     if (filter === 'all')     return true;
     if (filter === 'opened')  return e.opened;
     if (filter === 'clicked') return e.clicked;
-    if (filter === 'replied') return e.lead?.lead_status === 'replied';
+    if (filter === 'replied') return e.replied || e.lead?.lead_status === 'replied';
     return true;
   });
 
