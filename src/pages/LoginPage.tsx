@@ -188,7 +188,7 @@ export const LoginPage = () => {
         </div>
 
         <p className="login-footer">
-          Powered by Kelpie AI · v0.11.1 · Internal use only
+          Powered by Kelpie AI · v0.11.0 · <a href="/privacy" style={{ color: "var(--teal)", textDecoration: "none" }}>Privacy Policy</a> · <a href="/terms" style={{ color: "var(--teal)", textDecoration: "none" }}>Terms</a>
         </p>
       </div>
     </div>
