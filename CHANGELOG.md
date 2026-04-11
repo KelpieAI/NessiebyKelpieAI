@@ -6,27 +6,48 @@ This project follows semantic versioning during the 0.x development phase:
 - MINOR: new features
 - PATCH: bug fixes or polish
 
+## [0.12.0] — Email Tracking & Reply Detection
+
+### ✨ Added
+- **Email open tracking** — every email sent through Nessie embeds a 1x1 tracking pixel. Opens are recorded with exact timestamps.
+- **Open history timeline** — expand any email in Activities to see every individual open event with date, time and relative time
+- **30-second grace period** — prefetch/preview loads by email clients are filtered out and not counted as real opens
+- **Reply detection** — Nessie polls Gmail every 30 minutes to check if anyone has replied to a sent email. Replies are detected by thread ID, so no manual input is needed
+- **Reply snippets** — the first 300 characters of the reply are saved and shown inside the expanded email row in Activities
+- **Replies panel** — right sidebar in Activities shows all leads who have replied at a glance
+- **Activities page** — full outreach tracker showing sent emails, open counts, reply status, and batch breakdown with per-batch stats
+- **`sent_emails` table** — stores every email sent with full tracking data including open count, reply status, Gmail thread ID
+- **`email_opens` table** — stores each individual open event
+
+### 🔧 Improved
+- Lead status automatically updates to "replied" when a reply is detected
+- send-email Edge Function now saves Gmail thread ID on every send
+- Gmail OAuth scope updated to include `gmail.readonly` for reply polling
+- Activities filter tabs (All / Opened / Clicked / Replied) now use 
+  real `replied` field from `sent_emails` rather than lead status alone
+
+### 🛠 Infrastructure
+- New `check-replies` Supabase Edge Function
+- New `track-open` Supabase Edge Function  
+- Supabase cron job runs `check-replies` every 30 minutes automatically
+- `gmail.readonly` scope added to Google OAuth consent screen
+
+---
+
 ---
 
 ## [0.11.0] — Google OAuth & Gmail Email Sending
 
 ### ✨ Added
-- **Google OAuth login** — sign in with your Google account instead 
-  of email and password
-- **Gmail API integration** — emails sent directly from the user's 
-  own Gmail address, not a third-party service
-- **Google token storage** — access and refresh tokens saved securely 
-  to the user profile and auto-refreshed when expired
-- **send-email Edge Function** — handles Gmail API calls and token 
-  refresh logic server-side
+- **Google OAuth login** — sign in with your Google account instead of email and password
+- **Gmail API integration** — emails sent directly from the user's own Gmail address, not a third-party service
+- **Google token storage** — access and refresh tokens saved securely to the user profile and auto-refreshed when expired
+- **send-email Edge Function** — handles Gmail API calls and token refresh logic server-side
 
 ### 🔧 Improved
-- useAuth hook rewritten — eliminated a race condition that caused 
-  the infinite loading spinner on page refresh
-- Login page updated — Google sign-in button sits above the 
-  email/password form
-- Netlify deployment fixed — added `_redirects` file for proper 
-  SPA routing, site now deploys correctly from master branch
+- useAuth hook rewritten — eliminated a race condition that caused the infinite loading spinner on page refresh
+- Login page updated — Google sign-in button sits above the email/password form
+- Netlify deployment fixed — added `_redirects` file for proper SPA routing, site now deploys correctly from master branch
 
 ### 🛠 Infrastructure
 - Google Cloud OAuth 2.0 client configured with gmail.send scope
@@ -39,39 +60,24 @@ This project follows semantic versioning during the 0.x development phase:
 ## [0.10.0] — Lead Finder & Duplicate Detection
 
 ### ✨ Added
-- **Lead Finder module** — search for businesses by industry and location 
-  using Google Places API, no more manual URL hunting
-- **Place Details enrichment** — every result automatically gets website 
-  and phone number
-- **Hunter.io email enrichment** — finds named contacts with job titles 
-  and confidence scores
-- **Global duplicate detection** — database-level enforcement using a 
-  normalised domain index, prevents the same business appearing twice
-- **Duplicate UI** — greyed out cards with history modal showing when 
-  the lead was added, its status, and options to re-add or view it
-- **AppShell layout component** — smooth navigation between pages with 
-  no sidebar flash or remounting
-- **Unified sidebar** — Lead Finder batches and Scraper batches live 
-  in the same place with visual distinction between them
-  - **Full CSS design system** — CSS variables for every colour, spacing, 
-  radius, and font throughout the entire app. No more hardcoded values
-- **Three themes** — Kelpie (dark teal, the signature look), Dark 
-  (pure neutral black), and Light mode. Switchable from Settings → Appearance
-- **New login page** — pulsing logo ring animation, layered dark 
-  background with grid texture and teal glow, proper loading spinner 
-  inside the sign-in button
-- **Welcome / home screen redesign** — "Ready to Hunt" hero section 
-  with the Kelpie horse logo, eyebrow text, and Lead Finder card
+- **Lead Finder module** — search for businesses by industry and location using Google Places API, no more manual URL hunting
+- **Place Details enrichment** — every result automatically gets website and phone number
+- **Hunter.io email enrichment** — finds named contacts with job titles and confidence scores
+- **Global duplicate detection** — database-level enforcement using a normalised domain index, prevents the same business appearing twice
+- **Duplicate UI** — greyed out cards with history modal showing when the lead was added, its status, and options to re-add or view it
+- **AppShell layout component** — smooth navigation between pages with no sidebar flash or remounting
+- **Unified sidebar** — Lead Finder batches and Scraper batches live in the same place with visual distinction between them
+  - **Full CSS design system** — CSS variables for every colour, spacing, radius, and font throughout the entire app. No more hardcoded values
+- **Three themes** — Kelpie (dark teal, the signature look), Dark (pure neutral black), and Light mode. Switchable from Settings → Appearance
+- **New login page** — pulsing logo ring animation, layered dark background with grid texture and teal glow, proper loading spinner inside the sign-in button
+- **Welcome / home screen redesign** — "Ready to Hunt" hero section with the Kelpie horse logo, eyebrow text, and Lead Finder card
 
 ### 🔧 Improved
 - Lead Finder pipeline moved from Make.com to Supabase Edge Functions
 - Scraper and Lead Finder batches share one consistent pipeline
-- - TopBar — fully rebuilt with proper CSS classes, initials avatar, 
-  role badge, and themed dropdown menu
-- BatchCard — all hardcoded colours replaced with CSS variables, 
-  status pills are now theme-aware
-- RightSidebar, HotActivity, QuickNotes — ripped out hardcoded dark 
-  colours that were invisible in light mode
+- TopBar — fully rebuilt with proper CSS classes, initials avatar, role badge, and themed dropdown menu
+- BatchCard — all hardcoded colours replaced with CSS variables, status pills are now theme-aware
+- RightSidebar, HotActivity, QuickNotes — ripped out hardcoded dark colours that were invisible in light mode
 - Every component now respects all three themes correctly
 
 ---
