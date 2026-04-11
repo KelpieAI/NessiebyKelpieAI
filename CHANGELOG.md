@@ -34,8 +34,6 @@ This project follows semantic versioning during the 0.x development phase:
 
 ---
 
----
-
 ## [0.11.0] — Google OAuth & Gmail Email Sending
 
 ### ✨ Added
