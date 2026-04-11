@@ -188,7 +188,7 @@ export const LoginPage = () => {
         </div>
 
         <p className="login-footer">
-          Powered by Kelpie AI · v0.10.0 · Internal use only
+          Powered by Kelpie AI · v0.11.1 · Internal use only
         </p>
       </div>
     </div>
