@@ -14,15 +14,17 @@ export const AppShell = () => {
   useTheme();
 
   const getActiveView = () => {
-    if (location.pathname.startsWith('/settings'))  return 'Settings';
-    if (location.pathname.startsWith('/analytics')) return 'Analytics';
-    if (location.pathname.startsWith('/docs'))      return 'Docs';
+    if (location.pathname.startsWith('/settings'))   return 'Settings';
+    if (location.pathname.startsWith('/analytics'))  return 'Analytics';
+    if (location.pathname.startsWith('/activities')) return 'Activities';
+    if (location.pathname.startsWith('/docs'))       return 'Docs';
     return 'Queue';
   };
 
   const handleViewChange = (view: string) => {
-    if (view === 'Settings')  navigate('/settings');
+    if (view === 'Settings')       navigate('/settings');
     else if (view === 'Analytics') navigate('/analytics');
+    else if (view === 'Activities') navigate('/activities');
     else if (view === 'Docs')      navigate('/docs');
     else navigate('/queue');
   };

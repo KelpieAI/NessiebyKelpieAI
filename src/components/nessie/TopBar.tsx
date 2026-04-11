@@ -15,7 +15,7 @@ export const TopBar = ({ activeView, onViewChange, onCreateNewBatch }: TopBarPro
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const views = ['Queue', 'Analytics', 'Docs', 'Settings'];
+  const views = ['Queue', 'Analytics', 'Activities', 'Docs', 'Settings'];
 
   const handleViewChange = (view: string) => {
     onViewChange(view);
