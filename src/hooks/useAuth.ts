@@ -99,6 +99,7 @@ export const useAuth = () => {
             'email',
             'profile',
             'https://www.googleapis.com/auth/gmail.send',
+            'https://www.googleapis.com/auth/gmail.readonly',
           ].join(' '),
           queryParams: {
             access_type: 'offline',
