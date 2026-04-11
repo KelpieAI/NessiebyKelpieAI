@@ -106,7 +106,32 @@ const StatusDot = ({ opened, open_count, replied }: { opened: boolean; open_coun
 
 const EmailRow = ({ email }: { email: SentEmail }) => {
   const [expanded, setExpanded] = useState(false);
+  const [opens, setOpens] = useState<{ id: string; opened_at: string }[]>([]);
+  const [opensLoading, setOpensLoading] = useState(false);
   const replied = email.lead?.lead_status === 'replied';
+
+  const fetchOpens = async () => {
+    if (opens.length > 0) return; // already loaded
+    setOpensLoading(true);
+    try {
+      const { data } = await supabase
+        .from('email_opens')
+        .select('id, opened_at')
+        .eq('email_id', email.id)
+        .order('opened_at', { ascending: true });
+      setOpens(data || []);
+    } catch (err) {
+      console.error('Failed to fetch opens:', err);
+    } finally {
+      setOpensLoading(false);
+    }
+  };
+
+  const handleExpand = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && email.open_count > 0) fetchOpens();
+  };
 
   return (
     <div style={{
@@ -120,7 +145,7 @@ const EmailRow = ({ email }: { email: SentEmail }) => {
           gap: '12px', padding: '12px 14px', cursor: 'pointer',
           alignItems: 'center',
         }}
-        onClick={() => setExpanded(e => !e)}
+        onClick={handleExpand}
       >
         {/* Lead + email info */}
         <div style={{ minWidth: 0 }}>
@@ -166,45 +191,89 @@ const EmailRow = ({ email }: { email: SentEmail }) => {
 
       {/* Expanded details */}
       {expanded && (
-        <div style={{
-          borderTop: '1px solid var(--border)',
-          padding: '12px 14px',
-          background: 'var(--bg2)',
-          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px',
-        }}>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>To</div>
-            <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)' }}>
-              {email.to_name ? <><span style={{ fontWeight: 600 }}>{email.to_name}</span><br /></> : null}
-              {email.to_email}
+        <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
+
+          {/* Meta row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', padding: '12px 14px', borderBottom: email.open_count > 0 ? '1px solid var(--border)' : undefined }}>
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>To</div>
+              <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)' }}>
+                {email.to_name ? <><span style={{ fontWeight: 600 }}>{email.to_name}</span><br /></> : null}
+                {email.to_email}
+              </div>
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Sent</div>
-            <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)' }}>
-              {new Date(email.sent_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Sent</div>
+              <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)' }}>
+                {new Date(email.sent_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>First Opened</div>
-            <div style={{ fontSize: '12px', color: email.first_opened_at ? BLUE : 'var(--text4)', fontFamily: 'var(--font-body)', fontStyle: email.first_opened_at ? 'normal' : 'italic' }}>
-              {email.first_opened_at
-                ? new Date(email.first_opened_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                : 'Not yet opened'}
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Total Opens</div>
+              <div style={{ fontSize: '12px', color: email.open_count > 0 ? BLUE : 'var(--text4)', fontFamily: 'var(--font-body)', fontStyle: email.open_count > 0 ? 'normal' : 'italic', fontWeight: email.open_count > 0 ? 600 : 400 }}>
+                {email.open_count > 0 ? `${email.open_count} time${email.open_count !== 1 ? 's' : ''}` : 'Not yet opened'}
+              </div>
             </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Last Opened</div>
-            <div style={{ fontSize: '12px', color: email.last_opened_at ? BLUE : 'var(--text4)', fontFamily: 'var(--font-body)', fontStyle: email.last_opened_at ? 'normal' : 'italic' }}>
-              {email.last_opened_at
-                ? formatTimeAgo(email.last_opened_at)
-                : '—'}
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Last Opened</div>
+              <div style={{ fontSize: '12px', color: email.last_opened_at ? BLUE : 'var(--text4)', fontFamily: 'var(--font-body)', fontStyle: email.last_opened_at ? 'normal' : 'italic' }}>
+                {email.last_opened_at ? formatTimeAgo(email.last_opened_at) : '—'}
+              </div>
             </div>
+            {email.error && (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: DANGER, fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Error</div>
+                <div style={{ fontSize: '12px', color: DANGER, fontFamily: 'var(--font-body)' }}>{email.error}</div>
+              </div>
+            )}
           </div>
-          {email.error && (
-            <div style={{ gridColumn: '1 / -1' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: DANGER, fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '4px' }}>Error</div>
-              <div style={{ fontSize: '12px', color: DANGER, fontFamily: 'var(--font-body)' }}>{email.error}</div>
+
+          {/* Opens timeline */}
+          {email.open_count > 0 && (
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text4)', fontFamily: 'var(--font-head)', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: '10px' }}>
+                Open History
+              </div>
+              {opensLoading ? (
+                <div style={{ fontSize: '12px', color: 'var(--text4)', fontFamily: 'var(--font-body)', fontStyle: 'italic' }}>Loading…</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {opens.map((open, i) => (
+                    <div key={open.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      {/* Timeline line */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, paddingTop: '3px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: BLUE, flexShrink: 0 }} />
+                        {i < opens.length - 1 && (
+                          <div style={{ width: '1px', flex: 1, background: 'var(--border)', minHeight: '16px' }} />
+                        )}
+                      </div>
+                      {/* Open event */}
+                      <div style={{ paddingBottom: i < opens.length - 1 ? '12px' : '0', flex: 1 }}>
+                        <div style={{ fontSize: '12px', color: 'var(--text2)', fontFamily: 'var(--font-body)', fontWeight: 500 }}>
+                          Opened
+                          <span style={{ fontSize: '10px', color: 'var(--text4)', fontWeight: 400, marginLeft: '8px' }}>
+                            #{i + 1}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text3)', fontFamily: 'var(--font-body)', marginTop: '1px' }}>
+                          {new Date(open.opened_at).toLocaleDateString('en-GB', {
+                            weekday: 'short', day: '2-digit', month: 'short',
+                            year: 'numeric', hour: '2-digit', minute: '2-digit',
+                          })}
+                          <span style={{ marginLeft: '8px', color: 'var(--text4)' }}>
+                            · {formatTimeAgo(open.opened_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {opens.length === 0 && (
+                    <div style={{ fontSize: '12px', color: 'var(--text4)', fontFamily: 'var(--font-body)', fontStyle: 'italic' }}>
+                      No open events recorded yet
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
