@@ -171,30 +171,21 @@ export const retryFailedScrape = async (
   try {
     await updateScrapeStatus(website, batch_id, 'retrying', true);
 
-    const makeWebhookUrl = import.meta.env.VITE_MAKE_RETRY_WEBHOOK_URL;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!makeWebhookUrl) {
-      throw new Error('VITE_MAKE_RETRY_WEBHOOK_URL not configured');
-    }
-
-    const payload = {
-      trigger: 'retry_single',
-      website,
-      batch_id,
-      source: 'nessie_ui',
-    };
-
-    const response = await fetch(makeWebhookUrl, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/retry-scrape`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ website, batch_id }),
     });
 
     if (!response.ok) {
       await updateScrapeStatus(website, batch_id, 'failed', false);
-      throw new Error(`Make webhook returned ${response.status}`);
+      throw new Error(`retry-scrape returned ${response.status}`);
     }
 
     return { success: true };
