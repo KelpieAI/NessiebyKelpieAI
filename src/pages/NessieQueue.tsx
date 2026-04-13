@@ -180,7 +180,7 @@ export const NessieQueue = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enrich-email`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/enrich-lead`,
         {
           method: 'POST',
           headers: {
@@ -188,18 +188,20 @@ export const NessieQueue = () => {
             'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
             'Authorization': `Bearer ${session?.access_token}`,
           },
-          body: JSON.stringify({ batch_id: finderBatchId }),
+          body: JSON.stringify({ batch_uuid: finderBatchId }),
         }
       );
 
       const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!res.ok) {
         setFinderError(data.error || 'Enrichment failed');
         return;
       }
 
-      setFinderEnrichSummary(data.results);
-      showToast(`Found emails for ${data.results.enriched} businesses`);
+      // enrich-lead processes in background for multiple leads
+      const enriched = data.enriched || 0;
+      setFinderEnrichSummary({ enriched, total: finderLeads.length });
+      showToast(data.message || `Enriching ${finderLeads.length} leads — icebreakers and emails incoming`);
 
       const { data: updated } = await supabase
         .from('successful_scrapes')
@@ -982,7 +984,7 @@ export const NessieQueue = () => {
                     style={{ opacity: finderEnriching ? 0.6 : 1 }}
                   >
                     <Mail size={13} />
-                    {finderEnriching ? 'Finding emails...' : 'Find Emails'}
+                    {finderEnriching ? 'Enriching...' : 'Enrich Leads'}
                   </button>
                 )}
               </div>
@@ -1052,7 +1054,7 @@ export const NessieQueue = () => {
                   </div>
                   <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                     {finderLeads.filter(l => l.emails && l.emails.length > 0).length} emails found
-                    {finderBatchId && !finderEnrichSummary && ' · Click "Find Emails" to enrich'}
+                    {finderBatchId && !finderEnrichSummary && ' · Click "Enrich Leads" to find emails and generate icebreakers'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
