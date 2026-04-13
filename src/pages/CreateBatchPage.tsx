@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import { useBatches } from '../hooks/useBatches';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
@@ -48,38 +49,39 @@ export const CreateBatchPage = () => {
 
     showToast(`Batch created! Nessie is processing ${urls.length} leads…`);
 
-    const makeWebhookUrl = import.meta.env.VITE_MAKE_BATCH_WEBHOOK_URL;
-    const webhookSecret = import.meta.env.VITE_MAKE_WEBHOOK_SECRET || 'h3Q9tZVfA2nL0cW7RmPpB8sKxY4uD1eT';
+    try {
+      const normalizedUrls = urls.map(url => {
+        const t = url.trim();
+        return t.startsWith('https://') || t.startsWith('http://') ? t : `https://${t}`;
+      });
 
-    if (makeWebhookUrl) {
-      try {
-        const normalizedUrls = urls.map(url => {
-          const t = url.trim();
-          return t.startsWith('https://') || t.startsWith('http://') ? t : `https://${t}`;
-        });
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const { data: { session } } = await supabase.auth.getSession();
 
-        const res = await fetch(makeWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(webhookSecret && { 'X-Webhook-Secret': webhookSecret }) },
-          body: JSON.stringify({
-            batch_id: batch.id, batch_uuid: batch.id, user_id: user.id,
-            webhook_secret: webhookSecret, urls: normalizedUrls,
-            label: batchName.trim() || `Batch ${Date.now()}`, channel,
-            subject_template: channel === 'email' && subjectTemplate.trim() ? subjectTemplate.trim() : undefined,
-            message_template: messageTemplate.trim(),
-          }),
-        });
+      const res = await fetch(`${supabaseUrl}/functions/v1/process-batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          batch_uuid:       batch.id,
+          user_id:          user.id,
+          urls:             normalizedUrls,
+          label:            batchName.trim() || `Batch ${Date.now()}`,
+          channel,
+          subject_template: channel === 'email' && subjectTemplate.trim() ? subjectTemplate.trim() : '',
+          message_template: messageTemplate.trim(),
+        }),
+      });
 
-        if (res.ok) {
-          await updateBatch(batch.id, { status: 'processing' });
-        } else {
-          showToast('Batch created but webhook failed. Check console.');
-        }
-      } catch {
-        showToast('Batch created but webhook failed. Check console.');
+      if (res.ok) {
+        await updateBatch(batch.id, { status: 'processing' });
+      } else {
+        showToast('Batch created but processing failed. Check Supabase logs.');
       }
-    } else {
-      showToast('Batch created but webhook URL not configured');
+    } catch {
+      showToast('Batch created but processing failed. Check Supabase logs.');
     }
 
     navigate('/queue');
@@ -165,7 +167,7 @@ export const CreateBatchPage = () => {
               />
               <div className="helper-text">
                 {messageTemplate.length} characters · Variables:{' '}
-                {['{{company}}', '{{industry}}', '{{icebreaker}}', '{{website}}'].map(v => (
+                {['{{company}}', '{{industry}}', '{{icebreaker}}', '{{location}}', '{{service}}', '{{pain_point}}', '{{website}}'].map(v => (
                   <span key={v} className="cbp-var">{v}</span>
                 ))}
               </div>
